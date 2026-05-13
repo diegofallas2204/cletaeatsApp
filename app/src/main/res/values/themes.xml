@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Usamos Theme.Material3 para compatibilidad total con Compose y Material Components -->
+    <style name="Theme.CletaEats" parent="Theme.Material3.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="colorPrimary">@color/brown_dark</item>
+        <item name="colorSecondary">@color/brown_mid</item>
+        <item name="android:windowBackground">@color/cream</item>
+    </style>
+</resources>

@@ -1,0 +1,197 @@
+PROYECTO: CletaEats - Sistema de Pedidos
+
+Curso: EIF-411 Diseño y Programación de Dispositivos Móviles
+Ciclo: I Ciclo 2026
+Valor: 20%
+Fecha de entrega: 15 de Junio 2026
+
+---
+
+OBJETIVOS
+
+* Aplicar al menos un patrón de diseño visto en el curso.
+* Realizar deployment en emulador y dispositivo móvil.
+* Implementar un backend completo con capas:
+  datos, acceso a datos, modelo, lógica de negocio y control.
+* Implementar frontend móvil con control y vista.
+* Usar Login, NavDrawer y RecyclerView.
+* Integrar backend y frontend correctamente.
+* Crear aplicación web (React o Angular).
+* Utilizar corrutinas y Jetpack Compose.
+
+---
+
+DESCRIPCIÓN GENERAL
+
+Una empresa llamada “CletaEats” desea ofrecer un servicio de entrega de comida en la provincia de Heredia.
+
+El sistema permitirá a los clientes registrarse, elegir entre 7 restaurantes y realizar pedidos de combos.
+
+Cada restaurante ofrece combos numerados del 1 al 9.
+
+Precios de combos:
+
+* Combo 1: 4000 colones
+* Combo 2: 5000 colones
+* ...
+* Combo 9: 12000 colones
+
+Un pedido puede incluir varios combos, pero de un solo restaurante.
+
+El pedido será entregado por un repartidor registrado.
+
+---
+
+FACTURACIÓN
+
+Cada pedido debe incluir:
+
+* Detalle de combos
+* Precio por combo
+* Subtotal
+* Costo de transporte
+* IVA (13%)
+* Total (pagado con tarjeta)
+
+---
+
+REGISTRO DE REPARTIDORES
+
+Datos requeridos:
+
+* Nombre
+* Cédula
+* Correo electrónico
+* Dirección
+* Teléfono
+* Número de tarjeta
+* Estado (disponible / ocupado)
+* Distancia del pedido
+* Kilómetros recorridos diarios
+* Costo por km:
+
+  * Días hábiles: 1000 colones/km
+  * Feriados: 1500 colones/km
+* Número de amonestaciones
+
+Reglas:
+
+* Con 4 amonestaciones queda fuera de la empresa
+* Se deben registrar quejas de clientes
+
+---
+
+REGISTRO DE CLIENTES
+
+Datos requeridos:
+
+* Cédula
+* Nombre
+* Dirección
+* Número de tarjeta
+* Teléfono
+* Correo electrónico
+* Estado (activo / suspendido)
+
+---
+
+REGISTRO DE RESTAURANTES
+
+Datos requeridos:
+
+* Nombre
+* Cédula jurídica
+* Dirección
+* Tipo de comida (china, rápida, saludable, etc.)
+
+Nota:
+Los combos no se almacenan en el sistema, el restaurante los envía externamente.
+
+---
+
+PEDIDOS
+
+Flujo:
+
+1. Mostrar lista de restaurantes con tipo de comida.
+2. Validar si el cliente está registrado:
+
+   * Si no → registrarse
+   * Si está suspendido → no puede pedir
+3. Cliente selecciona combos (de un solo restaurante)
+4. Se asigna un repartidor disponible:
+
+   * Debe tener menos de 4 amonestaciones
+5. Estado del pedido:
+
+   * preparación
+   * en camino
+   * entregado
+   * suspendido
+6. Se registra:
+
+   * ID
+   * Precio
+   * Fecha/hora del pedido
+   * Fecha/hora de entrega
+
+El repartidor actualiza el estado a “entregado”.
+
+---
+
+PERSISTENCIA
+
+Toda la información debe guardarse para no perderse al reiniciar el sistema.
+
+---
+
+REPORTES REQUERIDOS
+
+a) Inclusión de clientes (validar por cédula)
+b) Inclusión de restaurantes (sin repetir cédula jurídica)
+c) Inclusión de repartidores (sin repetir cédula)
+d) Inclusión de pedidos
+
+e) Lista de clientes activos
+f) Lista de clientes suspendidos
+g) Repartidores sin amonestaciones
+h) Lista de restaurantes
+
+i) Restaurante con más pedidos
+j) Total vendido por restaurante
+k) Total vendido general
+l) Restaurante con menos pedidos
+
+m) Quejas por repartidor
+n) Pedidos por cliente
+o) Cliente con más pedidos
+p) Hora con mayor cantidad de pedidos
+
+---
+
+REGLAS GENERALES
+
+* Trabajo en grupo (máximo 3 personas)
+* Entrega por aula virtual
+* No se acepta entrega tardía
+* Proyecto debe ser original (sin plagio)
+* Debe tener mínimo 40% funcional
+* Interfaz amigable
+* Validación de datos obligatoria
+* Uso de Kotlin y Android Studio
+* Se deben entregar diagramas de clases
+* Se puede usar ChatGPT como apoyo
+
+---
+
+EVALUACIÓN
+
+* Patrones de diseño: 10%
+* Deployment: 5%
+* Backend completo: 20%
+* Interfaz gráfica: 20%
+* Integración: 20%
+* App web: 5%
+* Corrutinas y Jetpack Compose: 20%
+
+---

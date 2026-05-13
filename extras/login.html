@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Login - CletaEats Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --brown-dark: #3d1a0e;
+    --brown-mid: #6b2d1a;
+    --brown-light: #c47a4a;
+    --cream: #f5e6c8;
+    --cream-dark: #ead5a8;
+    --orange-soft: #e8a45a;
+    --white-card: #fdf6e8;
+    --text-dark: #2c1a0e;
+    --text-mid: #6b4226;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--cream);
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dark);
+  }
+
+  .login-card {
+    background: var(--white-card);
+    padding: 40px;
+    border-radius: 24px;
+    box-shadow: 0 16px 48px rgba(61,26,14,0.15);
+    border: 2px solid var(--cream-dark);
+    width: 380px;
+    max-width: 90vw;
+    text-align: center;
+  }
+
+  .logo {
+    font-family: 'Fredoka One', cursive;
+    font-size: 2.2rem;
+    color: var(--brown-dark);
+    margin-bottom: 30px;
+    letter-spacing: 2px;
+  }
+
+  .form-group {
+    text-align: left;
+    margin-bottom: 20px;
+  }
+
+  .form-group label {
+    display: block;
+    font-weight: 800;
+    font-size: 0.9rem;
+    color: var(--text-mid);
+    margin-bottom: 8px;
+    margin-left: 4px;
+  }
+
+  .form-group input {
+    width: 100%;
+    padding: 12px 18px;
+    border-radius: 14px;
+    border: 2px solid var(--cream-dark);
+    background: var(--cream);
+    font-family: 'Nunito', sans-serif;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .form-group input:focus {
+    border-color: var(--brown-light);
+  }
+
+  .btn-login {
+    width: 100%;
+    padding: 14px;
+    background: var(--brown-dark);
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    margin-top: 10px;
+  }
+
+  .btn-login:hover {
+    background: var(--brown-mid);
+  }
+
+  .btn-login:active {
+    transform: scale(0.98);
+  }
+
+  .error-msg {
+    color: #c0392b;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-top: 15px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="login-card">
+  <div class="logo">🍜 CletaEats</div>
+  <form id="loginForm" onsubmit="handleLogin(event)">
+    <div class="form-group">
+      <label>Usuario</label>
+      <input type="text" id="username" placeholder="Tu usuario admin" required />
+    </div>
+    <div class="form-group">
+      <label>Contraseña</label>
+      <input type="password" id="password" placeholder="••••••••" required />
+    </div>
+    <button type="submit" class="btn-login">Entrar al Panel</button>
+    <div id="errorMsg" class="error-msg">Credenciales inválidas. Inténtalo de nuevo.</div>
+  </form>
+</div>
+
+<script>
+async function handleLogin(e) {
+  e.preventDefault();
+  const user = document.getElementById('username').value;
+  const pass = document.getElementById('password').value;
+  const errorMsg = document.getElementById('errorMsg');
+  
+  errorMsg.style.display = 'none';
+
+  try {
+    const resp = await fetch('/api/usuarios/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass })
+    });
+    
+    const data = await resp.json();
+    
+    if (data.exito) {
+      // Guardar token y redirigir
+      // El backend actual en UsuarioController.java devuelve el token en un campo 'token'
+      // Pero RespuestaJSON envuelve todo en 'data'.
+      // Vamos a verificar qué devuelve el controlador.
+      localStorage.setItem('adminToken', data.token || data.data.token);
+      window.location.href = 'index.html';
+    } else {
+      errorMsg.style.display = 'block';
+    }
+  } catch (err) {
+    errorMsg.textContent = 'Error de conexión con el servidor.';
+    errorMsg.style.display = 'block';
+  }
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CletaEats Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+<script>
+  // AUTH GUARD
+  if (!localStorage.getItem('adminToken')) {
+    window.location.href = 'login.html';
+  }
+</script>
+<style>
+  :root {
+    --brown-dark: #3d1a0e;
+    --brown-mid: #6b2d1a;
+    --brown-light: #c47a4a;
+    --cream: #f5e6c8;
+    --cream-dark: #ead5a8;
+    --orange-soft: #e8a45a;
+    --white-card: #fdf6e8;
+    --text-dark: #2c1a0e;
+    --text-mid: #6b4226;
+    --green-accent: #5a8a3c;
+    --red-accent: #c0392b;
+    --blue-accent: #2980b9;
+    --sidebar-w: 200px;
+    --topbar-h: 56px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: var(--cream);
+    color: var(--text-dark);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ─── TOPBAR ─── */
+  #topbar {
+    background: var(--brown-dark);
+    height: var(--topbar-h);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 14px;
+    flex-shrink: 0;
+    z-index: 100;
+  }
+  #topbar .logo {
+    font-family: 'Fredoka One', cursive;
+    color: #fff;
+    font-size: 1.5rem;
+    letter-spacing: 2px;
+    border-bottom: 3px solid var(--orange-soft);
+    padding-bottom: 2px;
+    text-transform: uppercase;
+  }
+  #topbar .search-wrap {
+    flex: 1;
+    max-width: 400px;
+    margin: 0 auto;
+    position: relative;
+  }
+  #topbar .search-wrap input {
+    width: 100%;
+    padding: 8px 16px 8px 38px;
+    border-radius: 24px;
+    border: none;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.9rem;
+    outline: none;
+    transition: background 0.2s;
+  }
+  #topbar .search-wrap input::placeholder { color: rgba(255,255,255,0.6); }
+  #topbar .search-wrap .si {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    color: rgba(255,255,255,0.7); font-size: 1rem;
+  }
+  .btn-logout {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 6px 14px;
+    border-radius: 12px;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-logout:hover { background: var(--red-accent); border-color: var(--red-accent); }
+
+  /* ─── LAYOUT ─── */
+  #layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ─── SIDEBAR ─── */
+  #sidebar {
+    width: var(--sidebar-w);
+    background: var(--cream-dark);
+    border-right: 3px solid var(--brown-light);
+    display: flex;
+    flex-direction: column;
+    padding: 18px 0;
+    flex-shrink: 0;
+    transition: width 0.3s;
+    overflow: hidden;
+  }
+  #sidebar.collapsed { width: 44px; }
+  #sidebar .toggle-btn {
+    align-self: flex-end;
+    margin-right: 8px;
+    margin-bottom: 14px;
+    background: var(--brown-mid);
+    border: none;
+    color: #fff;
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.92rem;
+    color: var(--text-mid);
+    border-left: 4px solid transparent;
+    transition: all 0.15s;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .nav-item:hover { background: var(--cream); border-left-color: var(--brown-light); }
+  .nav-item.active { background: var(--white-card); border-left-color: var(--brown-dark); color: var(--brown-dark); }
+  .nav-item .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-cliente { background: #e67e22; }
+  .dot-restaurante { background: var(--brown-mid); }
+  .dot-repartidor { background: var(--green-accent); }
+  .dot-producto { background: var(--blue-accent); }
+
+  /* ─── MAIN CONTENT ─── */
+  #main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* ─── DASHBOARD VIEW ─── */
+  #dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+    width: 100%;
+  }
+  .summary-card {
+    background: var(--white-card);
+    border-radius: 18px;
+    padding: 18px 20px;
+    box-shadow: 0 4px 16px rgba(61,26,14,0.08);
+    border: 2px solid var(--cream-dark);
+    transition: box-shadow 0.2s, transform 0.2s;
+    cursor: pointer;
+  }
+  .summary-card:hover { box-shadow: 0 8px 28px rgba(61,26,14,0.15); transform: translateY(-2px); }
+  .summary-card h3 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.1rem;
+    color: var(--brown-dark);
+    margin-bottom: 14px;
+    text-align: center;
+  }
+  .summary-card .val {
+    font-size: 2.2rem;
+    font-weight: 800;
+    text-align: center;
+    color: var(--brown-mid);
+  }
+
+  /* ─── FOOD IMAGES PANEL ─── */
+  #food-panel {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding: 10px;
+    background: var(--white-card);
+    border-radius: 16px;
+    border: 2px solid var(--cream-dark);
+  }
+  .food-thumb {
+    width: 60px; height: 60px;
+    border-radius: 12px;
+    cursor: pointer;
+    border: 3px solid transparent;
+    box-shadow: 0 4px 8px rgba(61,26,14,0.1);
+    transition: all 0.2s;
+    background: var(--brown-dark);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.8rem;
+    position: relative;
+  }
+  .food-thumb:hover { transform: scale(1.1); border-color: var(--orange-soft); }
+  .food-thumb.active { border-color: var(--orange-soft); background: var(--brown-mid); }
+  .food-thumb .tip {
+    position: absolute; bottom: -20px; font-size: 0.6rem; color: var(--text-mid); font-weight: 800;
+    white-space: nowrap;
+  }
+
+  /* ─── SECTION VIEWS (CRUD) ─── */
+  .section-view { display: none; flex-direction: column; gap: 16px; flex: 1; }
+  .section-view.visible { display: flex; }
+
+  .section-header {
+    display: flex; align-items: center; gap: 12px;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .section-header h2 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.5rem;
+    color: var(--brown-dark);
+  }
+  .btn {
+    padding: 8px 18px;
+    border-radius: 10px;
+    border: none;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-primary { background: var(--brown-dark); color: #fff; }
+  .btn-primary:hover { background: var(--brown-mid); }
+  .btn-danger { background: var(--red-accent); color: #fff; }
+  .btn-danger:hover { background: #a93226; }
+  .btn-edit { background: var(--orange-soft); color: var(--brown-dark); }
+  .btn-edit:hover { background: var(--brown-light); }
+  .btn-sm { padding: 5px 12px; font-size: 0.8rem; }
+
+  /* TABLE */
+  .table-wrap {
+    background: var(--white-card);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(61,26,14,0.08);
+    border: 2px solid var(--cream-dark);
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    background: var(--brown-dark);
+    color: #fff;
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+  }
+  tbody tr { border-bottom: 1.5px solid var(--cream-dark); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--cream); }
+  tbody td { padding: 11px 16px; font-size: 0.88rem; color: var(--text-mid); }
+  .actions-cell { display: flex; gap: 6px; align-items: center; }
+
+  /* ─── MODAL ─── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(30,10,5,0.55);
+    z-index: 999;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--white-card);
+    border-radius: 20px;
+    padding: 28px 32px;
+    width: 420px;
+    max-width: 95vw;
+    box-shadow: 0 16px 48px rgba(30,10,5,0.3);
+    border: 2px solid var(--cream-dark);
+  }
+  .modal h3 {
+    font-family: 'Fredoka One', cursive;
+    font-size: 1.3rem;
+    color: var(--brown-dark);
+    margin-bottom: 18px;
+  }
+  .form-group { margin-bottom: 14px; }
+  .form-group label {
+    display: block;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--text-mid);
+    margin-bottom: 5px;
+  }
+  .form-group input, .form-group select {
+    width: 100%;
+    padding: 9px 14px;
+    border-radius: 10px;
+    border: 2px solid var(--cream-dark);
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.88rem;
+    background: var(--cream);
+    color: var(--text-dark);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--brown-light); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--cream); }
+  ::-webkit-scrollbar-thumb { background: var(--brown-light); border-radius: 6px; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 800;
+  }
+  .badge-green { background: #d4edda; color: #1a6b2e; }
+  .badge-orange { background: #fdebd0; color: #8a4a0e; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <div class="logo">🍜 CletaEats</div>
+  <div class="search-wrap">
+    <span class="si">🔍</span>
+    <input type="text" id="globalSearch" placeholder="Buscar..." oninput="onSearch(this.value)" />
+  </div>
+  <button class="btn-logout" onclick="logout()">Cerrar Sesión</button>
+</div>
+
+<!-- LAYOUT -->
+<div id="layout">
+
+  <!-- SIDEBAR -->
+  <nav id="sidebar">
+    <button class="toggle-btn" onclick="toggleSidebar()" title="Contraer">❮❮</button>
+    <div class="nav-item active" data-section="dashboard" onclick="goTo('dashboard', this)">
+      <span class="dot dot-cliente"></span><span class="nav-label">Inicio</span>
+    </div>
+    <div class="nav-item" data-section="clientes" onclick="goTo('clientes', this)">
+      <span class="dot dot-cliente"></span><span class="nav-label">Cliente</span>
+    </div>
+    <div class="nav-item" data-section="restaurantes" onclick="goTo('restaurantes', this)">
+      <span class="dot dot-restaurante"></span><span class="nav-label">Restaurante</span>
+    </div>
+    <div class="nav-item" data-section="repartidores" onclick="goTo('repartidores', this)">
+      <span class="dot dot-repartidor"></span><span class="nav-label">Repartidor</span>
+    </div>
+    <div class="nav-item" data-section="productos" onclick="goTo('productos', this)">
+      <span class="dot dot-producto"></span><span class="nav-label">Producto</span>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main id="main">
+
+    <!-- ══ DASHBOARD ══ -->
+    <div id="dashboard" class="section-view visible">
+      <div class="summary-card"><h3>Ventas Totales</h3><div class="val" id="dashVentas">...</div></div>
+      <div class="summary-card"><h3>Restaurantes</h3><div class="val" id="dashRestCount">...</div></div>
+      <div class="summary-card"><h3>Clientes</h3><div class="val" id="dashCliCount">...</div></div>
+      <div class="summary-card"><h3>Repartidores</h3><div class="val" id="dashRepCount">...</div></div>
+    </div>
+
+    <!-- ══ CLIENTES ══ -->
+    <div id="clientes" class="section-view">
+      <div class="section-header">
+        <h2>👤 Clientes</h2>
+        <button class="btn btn-primary" onclick="openModal('cliente')">+ Nuevo Cliente</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Cédula</th><th>Acciones</th></tr></thead>
+          <tbody id="tbClientes"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ RESTAURANTES ══ -->
+    <div id="restaurantes" class="section-view">
+      <div class="section-header">
+        <h2>🏪 Restaurantes</h2>
+        <button class="btn btn-primary" onclick="openModal('restaurante')">+ Nuevo Restaurante</button>
+      </div>
+      
+      <!-- FOOD PANEL (FILTER) -->
+      <div id="food-panel">
+        <div class="food-thumb" onclick="filterByFood('')" title="Todos">🏠<span class="tip">Todos</span></div>
+        <div class="food-thumb" onclick="filterByFood('china')" title="China">🍜<span class="tip">China</span></div>
+        <div class="food-thumb" onclick="filterByFood('rápida')" title="Rápida">🍔<span class="tip">Rápida</span></div>
+        <div class="food-thumb" onclick="filterByFood('coreana')" title="Coreana">🍲<span class="tip">Coreana</span></div>
+        <div class="food-thumb" onclick="filterByFood('italiana')" title="Italiana">🍕<span class="tip">Italiana</span></div>
+        <div class="food-thumb" onclick="filterByFood('saludable')" title="Saludable">🥗<span class="tip">Saludable</span></div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Nombre</th><th>Tipo de Comida</th><th>Cédula Jurídica</th><th>Acciones</th></tr></thead>
+          <tbody id="tbRestaurantes"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ REPARTIDORES ══ -->
+    <div id="repartidores" class="section-view">
+      <div class="section-header">
+        <h2>🛵 Repartidores</h2>
+        <button class="btn btn-primary" onclick="openModal('repartidor')">+ Nuevo Repartidor</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Nombre</th><th>Email</th><th>Cédula</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody id="tbRepartidores"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ PRODUCTOS ══ -->
+    <div id="productos" class="section-view">
+      <div class="section-header">
+        <h2>🍱 Combos / Productos</h2>
+        <button class="btn btn-primary" onclick="openModal('producto')">+ Nuevo Producto</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Nombre</th><th>Restaurante ID</th><th>Precio</th><th>Acciones</th></tr></thead>
+          <tbody id="tbProductos"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ══ MODAL ══ -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modalBox">
+    <h3 id="modalTitle">Nuevo</h3>
+    <div id="modalBody"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModalDirect()" style="background:var(--cream-dark);color:var(--text-mid)">Cancelar</button>
+      <button class="btn btn-primary" id="modalSaveBtn" onclick="saveRecord()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = '/api/admin';
+const TOKEN = localStorage.getItem('adminToken');
+
+let data = {
+  clientes: [],
+  restaurantes: [],
+  repartidores: [],
+  productos: [],
+  dashboard: {}
+};
+
+let currentFoodFilter = '';
+let editingId = null;
+let currentEntity = null;
+let sidebarCollapsed = false;
+
+// ════════════════════════════════
+//  AUTH & NAVIGATION
+// ════════════════════════════════
+function logout() {
+  localStorage.removeItem('adminToken');
+  window.location.href = 'login.html';
+}
+
+async function goTo(section, el) {
+  document.querySelectorAll('.section-view').forEach(v => v.classList.remove('visible'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(section).classList.add('visible');
+  if(el) el.classList.add('active');
+  await renderAll();
+}
+
+function toggleSidebar() {
+  sidebarCollapsed = !sidebarCollapsed;
+  const sb = document.getElementById('sidebar');
+  const btn = sb.querySelector('.toggle-btn');
+  sb.classList.toggle('collapsed', sidebarCollapsed);
+  btn.textContent = sidebarCollapsed ? '❯❯' : '❮❮';
+}
+
+// ════════════════════════════════
+//  DATA FETCHING
+// ════════════════════════════════
+async function fetchData(endpoint) {
+  const resp = await fetch(`${API_BASE}${endpoint}`, {
+    headers: { 'Authorization': `Bearer ${TOKEN}` }
+  });
+  
+  if (resp.status === 401) logout();
+  
+  const json = await resp.json();
+  return json.success ? json.data : [];
+}
+
+async function renderAll(filter='') {
+  data.clientes = await fetchData('/clientes');
+  data.restaurantes = await fetchData('/restaurantes');
+  data.repartidores = await fetchData('/repartidores');
+  data.productos = await fetchData('/combos');
+  data.dashboard = await fetchData('/dashboard');
+
+  renderDashboard();
+  renderClientes(filter);
+  renderRestaurantes(filter);
+  renderRepartidores(filter);
+  renderProductos(filter);
+}
+
+// ════════════════════════════════
+//  FILTERING
+// ════════════════════════════════
+function filterByFood(type) {
+  currentFoodFilter = type.toLowerCase();
+  
+  // UI update
+  document.querySelectorAll('.food-thumb').forEach(t => {
+    t.classList.remove('active');
+    if (t.getAttribute('onclick').includes(`'${type}'`)) t.classList.add('active');
+  });
+
+  renderRestaurantes();
+}
+
+// ════════════════════════════════
+//  RENDER COMPONENTS
+// ════════════════════════════════
+function renderDashboard() {
+  document.getElementById('dashVentas').textContent = '₡' + (data.dashboard.ventasTotales || 0).toLocaleString();
+  document.getElementById('dashRestCount').textContent = data.restaurantes.length;
+  document.getElementById('dashCliCount').textContent = data.dashboard.totalClientes || 0;
+  document.getElementById('dashRepCount').textContent = data.dashboard.totalRepartidores || 0;
+}
+
+function renderClientes(filter='') {
+  const tb = document.getElementById('tbClientes');
+  const list = data.clientes.filter(c=>JSON.stringify(c).toLowerCase().includes(filter.toLowerCase()));
+  tb.innerHTML = list.map(c=>`
+    <tr>
+      <td>${c.id}</td><td>${c.nombre}</td><td>${c.email}</td>
+      <td>${c.telefono}</td><td>${c.cedula}</td>
+      <td><div class="actions-cell">
+        <button class="btn btn-edit btn-sm" onclick="openEdit('cliente',${c.id})">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteRecord('clientes',${c.id})">🗑️</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function renderRestaurantes(filter='') {
+  const tb = document.getElementById('tbRestaurantes');
+  let list = data.restaurantes.filter(r=>JSON.stringify(r).toLowerCase().includes(filter.toLowerCase()));
+  
+  if (currentFoodFilter) {
+    list = list.filter(r => (r.tipoComida || '').toLowerCase().includes(currentFoodFilter));
+  }
+
+  tb.innerHTML = list.map(r=>`
+    <tr>
+      <td>${r.id}</td><td>${r.nombre}</td><td>${r.tipoComida}</td>
+      <td>${r.cedulaJuridica}</td>
+      <td><div class="actions-cell">
+        <button class="btn btn-edit btn-sm" onclick="openEdit('restaurante',${r.id})">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteRecord('restaurantes',${r.id})">🗑️</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function renderRepartidores(filter='') {
+  const tb = document.getElementById('tbRepartidores');
+  const list = data.repartidores.filter(r=>JSON.stringify(r).toLowerCase().includes(filter.toLowerCase()));
+  tb.innerHTML = list.map(r=>`
+    <tr>
+      <td>${r.id}</td><td>${r.nombre}</td><td>${r.email}</td>
+      <td>${r.cedula}</td>
+      <td><span class="badge ${r.estado==='disponible'?'badge-green':'badge-orange'}">${r.estado}</span></td>
+      <td><div class="actions-cell">
+        <button class="btn btn-edit btn-sm" onclick="openEdit('repartidor',${r.id})">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteRecord('repartidores',${r.id})">🗑️</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function renderProductos(filter='') {
+  const tb = document.getElementById('tbProductos');
+  const list = data.productos.filter(p=>JSON.stringify(p).toLowerCase().includes(filter.toLowerCase()));
+  tb.innerHTML = list.map(p=>`
+    <tr>
+      <td>${p.id}</td><td>${p.nombre}</td><td>${p.restauranteId}</td>
+      <td>₡${(p.precio || 0).toLocaleString()}</td>
+      <td><div class="actions-cell">
+        <button class="btn btn-edit btn-sm" onclick="openEdit('producto',${p.id})">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteRecord('combos',${p.id})">🗑️</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function onSearch(v) { renderAll(v); }
+
+// ════════════════════════════════
+//  MODALS
+// ════════════════════════════════
+const forms = {
+  cliente: (d={})=>`
+    <div class="form-group"><label>Nombre</label><input id="f_nombre" value="${d.nombre||''}"/></div>
+    <div class="form-group"><label>Email</label><input id="f_email" value="${d.email||''}"/></div>
+    <div class="form-group"><label>Teléfono</label><input id="f_telefono" value="${d.telefono||''}"/></div>
+    <div class="form-group"><label>Cédula</label><input id="f_cedula" value="${d.cedula||''}"/></div>
+    <div class="form-group"><label>Dirección</label><input id="f_direccion" value="${d.direccion||''}"/></div>
+    <div class="form-group"><label>Tarjeta</label><input id="f_tarjeta" value="${d.tarjeta||''}"/></div>
+    <div class="form-group"><label>Estado</label>
+      <select id="f_estado"><option value="activo" ${d.estado==='activo'?'selected':''}>Activo</option><option value="suspendido" ${d.estado==='suspendido'?'selected':''}>Suspendido</option></select>
+    </div>`,
+  restaurante: (d={})=>`
+    <div class="form-group"><label>Nombre</label><input id="f_nombre" value="${d.nombre||''}"/></div>
+    <div class="form-group"><label>Cédula Jurídica</label><input id="f_cedula_juridica" value="${d.cedulaJuridica||''}"/></div>
+    <div class="form-group"><label>Tipo Comida</label><input id="f_tipo_comida" value="${d.tipoComida||''}"/></div>
+    <div class="form-group"><label>Dirección</label><input id="f_direccion" value="${d.direccion||''}"/></div>`,
+  repartidor: (d={})=>`
+    <div class="form-group"><label>Nombre</label><input id="f_nombre" value="${d.nombre||''}"/></div>
+    <div class="form-group"><label>Email</label><input id="f_email" value="${d.email||''}"/></div>
+    <div class="form-group"><label>Cédula</label><input id="f_cedula" value="${d.cedula||''}"/></div>
+    <div class="form-group"><label>Dirección</label><input id="f_direccion" value="${d.direccion||''}"/></div>
+    <div class="form-group"><label>Tarjeta</label><input id="f_tarjeta" value="${d.tarjeta||''}"/></div>
+    <div class="form-group"><label>Estado</label>
+      <select id="f_estado"><option value="disponible" ${d.estado==='disponible'?'selected':''}>Disponible</option><option value="ocupado" ${d.estado==='ocupado'?'selected':''}>Ocupado</option></select>
+    </div>`,
+  producto: (d={})=>`
+    <div class="form-group"><label>Nombre</label><input id="f_nombre" value="${d.nombre||''}"/></div>
+    <div class="form-group"><label>Restaurante ID</label><input id="f_restaurante_id" type="number" value="${d.restauranteId||''}"/></div>
+    <div class="form-group"><label>Número Combo (1-9)</label><input id="f_numero_combo" type="number" value="${d.numeroCombo||''}"/></div>
+    <div class="form-group"><label>Precio</label><input id="f_precio" type="number" value="${d.precio||''}"/></div>`,
+};
+
+function openModal(entity, id=null) {
+  currentEntity = entity;
+  editingId = id;
+  const plural = entity==='cliente'?'clientes':entity==='restaurante'?'restaurantes':entity==='repartidor'?'repartidores':'productos';
+  const rec = id ? data[plural].find(r=>r.id===id) : {};
+  document.getElementById('modalTitle').textContent = (id?'Editar ':'Nuevo ') + entity;
+  document.getElementById('modalBody').innerHTML = forms[entity](rec||{});
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function openEdit(entity, id) { openModal(entity, id); }
+function closeModal(e) { if(e.target===document.getElementById('modalOverlay')) closeModalDirect(); }
+function closeModalDirect() { document.getElementById('modalOverlay').classList.remove('open'); editingId=null; currentEntity=null; }
+
+async function saveRecord() {
+  const entity = currentEntity;
+  const plural = entity==='cliente'?'clientes':entity==='restaurante'?'restaurantes':entity==='repartidor'?'repartidores':'combos';
+  
+  let rec = { id: editingId };
+  if(entity==='cliente') {
+    rec = { ...rec, nombre:v('f_nombre'), email:v('f_email'), telefono:v('f_telefono'), cedula:v('f_cedula'), direccion:v('f_direccion'), tarjeta:v('f_tarjeta'), estado:v('f_estado') };
+  } else if(entity==='restaurante') {
+    rec = { ...rec, nombre:v('f_nombre'), cedulaJuridica:v('f_cedula_juridica'), tipoComida:v('f_tipo_comida'), direccion:v('f_direccion') };
+  } else if(entity==='repartidor') {
+    rec = { ...rec, nombre:v('f_nombre'), email:v('f_email'), cedula:v('f_cedula'), direccion:v('f_direccion'), tarjeta:v('f_tarjeta'), estado:v('f_estado') };
+  } else if(entity==='producto') {
+    rec = { ...rec, nombre:v('f_nombre'), restauranteId:parseInt(v('f_restaurante_id')), numeroCombo:parseInt(v('f_numero_combo')), precio:parseFloat(v('f_precio')) };
+  }
+
+  const method = editingId ? 'PUT' : 'POST';
+  const url = `${API_BASE}/${plural}`;
+  
+  await fetch(url, {
+    method: method,
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${TOKEN}`
+    },
+    body: JSON.stringify(rec)
+  });
+
+  closeModalDirect();
+  await renderAll();
+}
+
+async function deleteRecord(plural, id) {
+  if(!confirm('¿Eliminar?')) return;
+  await fetch(`${API_BASE}/${plural}/${id}`, { 
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${TOKEN}` }
+  });
+  await renderAll();
+}
+
+function v(id) { return document.getElementById(id).value; }
+
+renderAll();
+</script>
+</body>
+</html>
