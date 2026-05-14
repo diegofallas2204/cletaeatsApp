@@ -13,6 +13,12 @@ data class LoginRequest(
     val password: String
 )
 
+data class RegisterRequest(
+    val username: String,
+    val password: String,
+    val rol: String
+)
+
 data class LoginResponse(
     val success: Boolean,
     val token: String?,
@@ -77,6 +83,9 @@ data class UpdateStatusRequest(
 interface CletaApiService {
     @POST("api/usuarios/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
+
+    @POST("api/usuarios/registrar")
+    suspend fun register(@Body request: RegisterRequest): CletaResponse<Any>
 
     // Restaurantes (Público)
     @GET("api/restaurantes")
