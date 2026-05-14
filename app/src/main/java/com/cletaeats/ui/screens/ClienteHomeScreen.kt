@@ -30,6 +30,7 @@ import com.cletaeats.network.CletaApi
 import com.cletaeats.network.PedidoItem
 import com.cletaeats.network.RestauranteItem
 import com.cletaeats.network.ComboItem
+import com.cletaeats.network.MetodoPago
 import com.cletaeats.network.TokenManager
 import com.cletaeats.ui.theme.*
 import kotlinx.coroutines.launch
@@ -85,7 +86,9 @@ fun ClienteContent() {
     var showPaymentDialog by remember { mutableStateOf(false) }
     var showOrderTracking by remember { mutableStateOf(false) }
     var extraNotes by remember { mutableStateOf("") }
+    var isAgrandado by remember { mutableStateOf(false) }
     var isSubmittingOrder by remember { mutableStateOf(false) }
+    var tarjetasGuardadas by remember { mutableStateOf<List<MetodoPago>>(emptyList()) }
     val coroutineScope = rememberCoroutineScope()
 
     val categorias = listOf(
@@ -127,6 +130,16 @@ fun ClienteContent() {
             }
         } catch (e: Exception) {
             Log.e("CletaEats", "Fallo al cargar historial (posible 401): ${e.message}")
+        }
+
+        // 3. Cargar Tarjetas (Privado)
+        try {
+            val tarjetasResp = CletaApi.retrofitService.getTarjetas(fullToken)
+            if (tarjetasResp.success) {
+                tarjetasGuardadas = tarjetasResp.data ?: emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e("CletaEats", "Fallo al cargar tarjetas: ${e.message}")
         }
         } finally {
             isLoading = false
@@ -309,7 +322,9 @@ fun ClienteContent() {
         CheckoutDialog(
             combo = selectedCombo!!,
             notes = extraNotes,
+            isAgrandado = isAgrandado,
             onNotesChange = { extraNotes = it },
+            onAgrandadoChange = { isAgrandado = it },
             onDismiss = { showCheckoutDialog = false },
             onConfirm = {
                 showCheckoutDialog = false
@@ -321,20 +336,39 @@ fun ClienteContent() {
     if (showPaymentDialog && selectedCombo != null && selectedRestaurant != null) {
         PaymentDialog(
             isSubmitting = isSubmittingOrder,
+            tarjetas = tarjetasGuardadas,
             onDismiss = { showPaymentDialog = false },
+            onSaveCard = { nuevaTarjeta ->
+                coroutineScope.launch {
+                    try {
+                        val token = TokenManager.token
+                        if (token != null) {
+                            val resp = CletaApi.retrofitService.guardarTarjeta("Bearer $token", nuevaTarjeta)
+                            if (resp.success && resp.data != null) {
+                                tarjetasGuardadas = tarjetasGuardadas + resp.data
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("CletaEats", "Error al guardar tarjeta", e)
+                    }
+                }
+            },
             onConfirm = { paymentMethod ->
                 coroutineScope.launch {
                     isSubmittingOrder = true
                     try {
                         val token = TokenManager.token
                         if (token != null) {
-                            val request = com.cletaeats.network.OrderRequest(
-                                restauranteId = selectedRestaurant!!.id,
-                                items = listOf(
-                                    com.cletaeats.network.OrderItem(
-                                        comboId = selectedCombo!!.id,
-                                        cantidad = 1,
-                                        notas = "$paymentMethod - $extraNotes"
+                            val request = com.cletaeats.network.CreateOrderPayload(
+                                pedido = com.cletaeats.network.OrderRequest(
+                                    restauranteId = selectedRestaurant!!.id,
+                                    detalles = listOf(
+                                        com.cletaeats.network.OrderItem(
+                                            comboId = selectedCombo!!.id,
+                                            cantidad = 1,
+                                            agrandado = isAgrandado,
+                                            notas = "$paymentMethod - $extraNotes"
+                                        )
                                     )
                                 )
                             )
@@ -343,12 +377,15 @@ fun ClienteContent() {
                                 showPaymentDialog = false
                                 showOrderTracking = true
                                 extraNotes = ""
+                                isAgrandado = false
                             } else {
                                 Log.e("CletaEats", "Error al crear pedido: ${resp.error}")
+                                showPaymentDialog = false
                             }
                         }
                     } catch (e: Exception) {
                         Log.e("CletaEats", "Fallo al crear pedido", e)
+                        showPaymentDialog = false
                     } finally {
                         isSubmittingOrder = false
                     }
@@ -738,7 +775,9 @@ fun SummaryCard(title: String, value: String, color: Color) {
 fun CheckoutDialog(
     combo: ComboItem,
     notes: String,
+    isAgrandado: Boolean,
     onNotesChange: (String) -> Unit,
+    onAgrandadoChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
@@ -760,12 +799,25 @@ fun CheckoutDialog(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "₡${combo.precio}",
+                    text = "₡${if (isAgrandado) combo.precio + 1500 else combo.precio}",
                     style = MaterialTheme.typography.bodyLarge,
                     color = OrangeSoft,
                     fontWeight = FontWeight.ExtraBold
                 )
                 Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().clickable { onAgrandadoChange(!isAgrandado) }.padding(vertical = 8.dp)
+                ) {
+                    Checkbox(
+                        checked = isAgrandado,
+                        onCheckedChange = onAgrandadoChange,
+                        colors = CheckboxDefaults.colors(checkedColor = BrownDark)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Agrandar combo (+₡1500)", fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = notes,
                     onValueChange = onNotesChange,
@@ -800,10 +852,18 @@ fun CheckoutDialog(
 @Composable
 fun PaymentDialog(
     isSubmitting: Boolean,
+    tarjetas: List<MetodoPago>,
     onDismiss: () -> Unit,
+    onSaveCard: (MetodoPago) -> Unit,
     onConfirm: (String) -> Unit
 ) {
     var selectedPayment by remember { mutableStateOf("Efectivo") }
+    var showNewCardForm by remember { mutableStateOf(false) }
+    
+    // New Card state
+    var numeroTarjeta by remember { mutableStateOf("") }
+    var fechaVencimiento by remember { mutableStateOf("") }
+    var cvv by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -817,37 +877,102 @@ fun PaymentDialog(
         },
         text = {
             Column {
-                Text("Elige cómo deseas pagar tu pedido:")
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { selectedPayment = "Efectivo" }
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = selectedPayment == "Efectivo",
-                        onClick = { selectedPayment = "Efectivo" },
-                        colors = RadioButtonDefaults.colors(selectedColor = BrownDark)
+                if (!showNewCardForm) {
+                    Text("Elige cómo deseas pagar tu pedido:")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Efectivo
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedPayment = "Efectivo" }
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = selectedPayment == "Efectivo",
+                            onClick = { selectedPayment = "Efectivo" },
+                            colors = RadioButtonDefaults.colors(selectedColor = BrownDark)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("💵 Efectivo")
+                    }
+
+                    // Tarjetas Guardadas
+                    tarjetas.forEach { tarjeta ->
+                        val last4 = if (tarjeta.numeroTarjeta.length >= 4) tarjeta.numeroTarjeta.takeLast(4) else "****"
+                        val cardLabel = "💳 Tarjeta terminada en $last4"
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedPayment = cardLabel }
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedPayment == cardLabel,
+                                onClick = { selectedPayment = cardLabel },
+                                colors = RadioButtonDefaults.colors(selectedColor = BrownDark)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(cardLabel)
+                        }
+                    }
+
+                    // Add new card button
+                    TextButton(onClick = { showNewCardForm = true }) {
+                        Text("+ Agregar nueva tarjeta", color = BrownMid)
+                    }
+
+                } else {
+                    Text("Agregar Nueva Tarjeta", fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = numeroTarjeta,
+                        onValueChange = { numeroTarjeta = it },
+                        label = { Text("Número de Tarjeta") },
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("💵 Efectivo")
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { selectedPayment = "Tarjeta" }
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = selectedPayment == "Tarjeta",
-                        onClick = { selectedPayment = "Tarjeta" },
-                        colors = RadioButtonDefaults.colors(selectedColor = BrownDark)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("💳 Tarjeta (Datáfono)")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row {
+                        OutlinedTextField(
+                            value = fechaVencimiento,
+                            onValueChange = { fechaVencimiento = it },
+                            label = { Text("MM/AA") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        OutlinedTextField(
+                            value = cvv,
+                            onValueChange = { cvv = it },
+                            label = { Text("CVV") },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            val newCard = MetodoPago(
+                                numeroTarjeta = numeroTarjeta,
+                                fechaVencimiento = fechaVencimiento,
+                                cvv = cvv
+                            )
+                            onSaveCard(newCard)
+                            showNewCardForm = false
+                            val last4 = if (numeroTarjeta.length >= 4) numeroTarjeta.takeLast(4) else "****"
+                            selectedPayment = "💳 Tarjeta terminada en $last4"
+                            numeroTarjeta = ""
+                            fechaVencimiento = ""
+                            cvv = ""
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = BrownDark),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Guardar Tarjeta", color = Color.White)
+                    }
+                    TextButton(onClick = { showNewCardForm = false }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Cancelar", color = BrownMid)
+                    }
                 }
                 
                 if (isSubmitting) {
@@ -857,17 +982,21 @@ fun PaymentDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = { onConfirm(selectedPayment) },
-                enabled = !isSubmitting,
-                colors = ButtonDefaults.buttonColors(containerColor = BrownDark)
-            ) {
-                Text("Confirmar Pedido", color = Color.White)
+            if (!showNewCardForm) {
+                Button(
+                    onClick = { onConfirm(selectedPayment) },
+                    enabled = !isSubmitting,
+                    colors = ButtonDefaults.buttonColors(containerColor = BrownDark)
+                ) {
+                    Text("Confirmar Pedido", color = Color.White)
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isSubmitting) {
-                Text("Cancelar", color = BrownMid)
+            if (!showNewCardForm) {
+                TextButton(onClick = onDismiss, enabled = !isSubmitting) {
+                    Text("Cancelar", color = BrownMid)
+                }
             }
         },
         containerColor = Cream

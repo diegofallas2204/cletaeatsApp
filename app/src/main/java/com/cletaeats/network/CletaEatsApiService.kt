@@ -13,6 +13,12 @@ data class LoginRequest(
     val password: String
 )
 
+data class RegisterRequest(
+    val username: String,
+    val password: String,
+    val rol: String
+)
+
 data class LoginResponse(
     val success: Boolean,
     val token: String?,
@@ -59,14 +65,20 @@ data class PedidoItem(
     val fecha: String? = null
 )
 
+data class CreateOrderPayload(
+    val pedido: OrderRequest,
+    val esFeriado: Boolean = false
+)
+
 data class OrderRequest(
     val restauranteId: Int,
-    val items: List<OrderItem>
+    val detalles: List<OrderItem>
 )
 
 data class OrderItem(
     val comboId: Int,
     val cantidad: Int,
+    val agrandado: Boolean = false,
     val notas: String? = null
 )
 
@@ -74,9 +86,20 @@ data class UpdateStatusRequest(
     val estado: String
 )
 
+data class MetodoPago(
+    val id: Int? = null,
+    val clienteId: Int? = null,
+    val numeroTarjeta: String,
+    val fechaVencimiento: String,
+    val cvv: String
+)
+
 interface CletaApiService {
     @POST("api/usuarios/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
+
+    @POST("api/usuarios/registrar")
+    suspend fun register(@Body request: RegisterRequest): CletaResponse<Any>
 
     // Restaurantes (Público)
     @GET("api/restaurantes")
@@ -93,10 +116,16 @@ interface CletaApiService {
 
     // Cliente
     @POST("api/cliente/pedidos")
-    suspend fun createOrder(@Header("Authorization") token: String, @Body request: OrderRequest): CletaResponse<PedidoItem>
+    suspend fun createOrder(@Header("Authorization") token: String, @Body request: CreateOrderPayload): CletaResponse<String>
 
     @GET("api/cliente/pedidos/historial")
     suspend fun getClienteHistorial(@Header("Authorization") token: String): CletaResponse<List<PedidoItem>>
+
+    @GET("api/cliente/tarjetas")
+    suspend fun getTarjetas(@Header("Authorization") token: String): CletaResponse<List<MetodoPago>>
+
+    @POST("api/cliente/tarjetas")
+    suspend fun guardarTarjeta(@Header("Authorization") token: String, @Body tarjeta: MetodoPago): CletaResponse<MetodoPago>
 
     // Repartidor
     @GET("api/repartidor/pedidos")
