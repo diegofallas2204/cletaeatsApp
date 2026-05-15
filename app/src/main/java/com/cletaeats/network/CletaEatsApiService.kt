@@ -16,7 +16,12 @@ data class LoginRequest(
 data class RegisterRequest(
     val username: String,
     val password: String,
-    val rol: String
+    val rol: String,
+    val nombre: String,
+    val cedula: String,
+    val direccion: String,
+    val telefono: String,
+    val email: String
 )
 
 data class LoginResponse(

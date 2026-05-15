@@ -1,10 +1,9 @@
 package com.cletaeats.ui.auth
 
+import android.util.Log
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,212 +13,122 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.cletaeats.ui.theme.*
 import com.cletaeats.network.CletaApi
 import com.cletaeats.network.RegisterRequest
-import kotlinx.coroutines.delay
+import com.cletaeats.ui.theme.*
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RegisterScreen(onRegisterSuccess: () -> Unit, onBackToLogin: () -> Unit) {
+fun RegisterScreen(
+    onRegisterSuccess: () -> Unit,
+    onBackToLogin: () -> Unit
+) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var selectedRole by remember { mutableStateOf("cliente") }
-    var showError by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf("") }
+    var rol by remember { mutableStateOf("cliente") }
+    var nombre by remember { mutableStateOf("") }
+    var cedula by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var telefono by remember { mutableStateOf("") }
+    var direccion by remember { mutableStateOf("") }
+
     var isLoading by remember { mutableStateOf(false) }
-    var isSuccess by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    val roles = listOf("cliente", "repartidor")
-    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxSize().background(Cream)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("Crear Cuenta", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = BrownDark)
+            Text("Únete a CletaEats hoy", color = BrownLight, modifier = Modifier.padding(bottom = 24.dp))
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBackToLogin) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Volver", tint = BrownDark)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                RoleCard("Cliente", rol == "cliente", Modifier.weight(1f)) { rol = "cliente" }
+                RoleCard("Repartidor", rol == "repartidor", Modifier.weight(1f)) { rol = "repartidor" }
             }
-            Spacer(modifier = Modifier.weight(1f))
-        }
-        
-        Text(
-            text = "Crear Cuenta",
-            style = MaterialTheme.typography.displayMedium.copy(
-                color = BrownDark,
-                fontSize = 28.sp
-            ),
-            modifier = Modifier.padding(bottom = 32.dp)
-        )
 
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = "Usuario",
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
-            )
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                placeholder = { Text("Tu nombre de usuario") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                enabled = !isLoading,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = BrownLight,
-                    unfocusedBorderColor = CreamDark,
-                    focusedContainerColor = Cream,
-                    unfocusedContainerColor = Cream
-                )
-            )
-        }
+            Spacer(modifier = Modifier.height(16.dp))
 
-        Spacer(modifier = Modifier.height(20.dp))
+            CletaInput(username, { username = it }, "Usuario")
+            CletaInput(password, { password = it }, "Contraseña", isPassword = true)
+            CletaInput(nombre, { nombre = it }, "Nombre Completo")
+            CletaInput(cedula, { cedula = it }, "Cédula")
+            CletaInput(email, { email = it }, "Correo Electrónico")
+            CletaInput(telefono, { telefono = it }, "Teléfono")
+            CletaInput(direccion, { direccion = it }, "Dirección Exacta", singleLine = false)
 
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = "Contraseña",
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
-            )
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                placeholder = { Text("••••••••") },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                enabled = !isLoading,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = BrownLight,
-                    unfocusedBorderColor = CreamDark,
-                    focusedContainerColor = Cream,
-                    unfocusedContainerColor = Cream
-                )
-            )
-        }
+            Spacer(modifier = Modifier.height(24.dp))
 
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = "Rol",
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
-            )
-            ExposedDropdownMenuBox(
-                expanded = expanded,
-                onExpandedChange = { expanded = !expanded }
-            ) {
-                OutlinedTextField(
-                    value = selectedRole.replaceFirstChar { it.uppercase() },
-                    onValueChange = {},
-                    readOnly = true,
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .menuAnchor(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = BrownLight,
-                        unfocusedBorderColor = CreamDark,
-                        focusedContainerColor = Cream,
-                        unfocusedContainerColor = Cream
-                    )
-                )
-                ExposedDropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false }
-                ) {
-                    roles.forEach { selectionOption ->
-                        DropdownMenuItem(
-                            text = { Text(selectionOption.replaceFirstChar { it.uppercase() }) },
-                            onClick = {
-                                selectedRole = selectionOption
-                                expanded = false
-                            }
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(30.dp))
-
-        if (isSuccess) {
-            Text(
-                text = "¡Cuenta creada exitosamente! Redirigiendo...",
-                color = BrownLight,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-        }
-
-        Button(
-            onClick = {
-                if (username.isNotEmpty() && password.isNotEmpty()) {
-                    isLoading = true
-                    showError = false
+            Button(
+                onClick = {
                     scope.launch {
+                        isLoading = true
                         try {
-                            val response = CletaApi.retrofitService.register(
-                                RegisterRequest(username, password, selectedRole)
+                            val request = RegisterRequest(
+                                username, password, rol, nombre, cedula, direccion, telefono, email
                             )
-                            if (response.success) {
-                                isSuccess = true
-                                delay(1500)
+                            val resp = CletaApi.retrofitService.register(request)
+                            if (resp.success) {
                                 onRegisterSuccess()
                             } else {
-                                errorMessage = response.error ?: "No se pudo registrar la cuenta."
-                                showError = true
+                                // Nota: Usamos 'error' en lugar de 'mensaje' para coincidir con ApiResponse
+                                Log.e("CletaEats", "Error: ${resp.error ?: "Error desconocido"}")
                             }
                         } catch (e: Exception) {
-                            errorMessage = "Error de conexión: ${e.localizedMessage}"
-                            showError = true
+                            Log.e("CletaEats", "Fallo: ${e.message}")
                         } finally {
                             isLoading = false
                         }
                     }
-                } else {
-                    errorMessage = "Por favor completa todos los campos."
-                    showError = true
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp),
-            shape = RoundedCornerShape(16.dp),
-            enabled = !isLoading && !isSuccess,
-            colors = ButtonDefaults.buttonColors(containerColor = BrownDark)
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.PersonAdd,
-                        contentDescription = "Registrarse",
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp).padding(end = 8.dp)
-                    )
-                    Text("Registrarse", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                }
+                },
+                modifier = Modifier.fillMaxWidth().height(55.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = BrownDark),
+                shape = RoundedCornerShape(12.dp),
+                enabled = !isLoading
+            ) {
+                if (isLoading) CircularProgressIndicator(color = Cream, modifier = Modifier.size(24.dp))
+                else Text("Registrarse", color = Cream, fontWeight = FontWeight.Bold)
+            }
+
+            TextButton(onClick = onBackToLogin) {
+                Text("¿Ya tienes cuenta? Inicia sesión", color = BrownDark)
             }
         }
+    }
+}
 
-        if (showError) {
-            Text(
-                text = errorMessage,
-                color = RedAccent,
-                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.padding(top = 16.dp)
-            )
+@Composable
+private fun RoleCard(label: String, isSelected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    OutlinedCard(
+        onClick = onClick,
+        modifier = modifier,
+        colors = CardDefaults.outlinedCardColors(containerColor = if (isSelected) BrownDark else Color.Transparent),
+        border = BorderStroke(1.dp, BrownDark)
+    ) {
+        Box(Modifier.fillMaxWidth().padding(12.dp), Alignment.Center) {
+            Text(label, color = if (isSelected) Cream else BrownDark, fontWeight = FontWeight.Bold)
         }
     }
+}
+
+@Composable
+private fun CletaInput(value: String, onValueChange: (String) -> Unit, label: String, isPassword: Boolean = false, singleLine: Boolean = true) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        singleLine = singleLine,
+        visualTransformation = if (isPassword) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = OrangeSoft,
+            unfocusedBorderColor = BrownLight,
+            focusedLabelColor = BrownDark
+        )
+    )
 }
