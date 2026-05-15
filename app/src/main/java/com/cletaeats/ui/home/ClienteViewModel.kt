@@ -1,14 +1,13 @@
-package com.cletaeats.ui.screens
+package com.cletaeats.ui.home
 
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cletaeats.network.CletaApi
-import kotlinx.coroutines.launch
-
 import com.cletaeats.network.TokenManager
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 class ClienteViewModel : ViewModel() {
     var cletaUiState: String by mutableStateOf("Cargando conexión con Backend...")

@@ -67,19 +67,25 @@ data class PedidoItem(
 
 data class CreateOrderPayload(
     val pedido: OrderRequest,
-    val esFeriado: Boolean = false
+    val esFeriado: Boolean
 )
 
 data class OrderRequest(
     val restauranteId: Int,
+    val subtotal: Double,
+    val costoEnvio: Double,
+    val iva: Double,
+    val total: Double,
+    val distanciaKm: Double,
+    val fechaPedido: String, // Se enviará en formato ISO
+    val fechaEntrega: String?,
     val detalles: List<OrderItem>
 )
 
 data class OrderItem(
-    val comboId: Int,
+    val productoId: Int,
     val cantidad: Int,
-    val agrandado: Boolean = false,
-    val notas: String? = null
+    val precio: Double
 )
 
 data class UpdateStatusRequest(

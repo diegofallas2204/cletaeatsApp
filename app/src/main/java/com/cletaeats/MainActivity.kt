@@ -10,8 +10,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import com.cletaeats.network.TokenManager
-import com.cletaeats.ui.screens.LoginScreen
-import com.cletaeats.ui.screens.RegisterScreen
+import com.cletaeats.ui.auth.LoginScreen
+import com.cletaeats.ui.auth.RegisterScreen
 import com.cletaeats.ui.screens.ClienteHomeScreen
 import com.cletaeats.ui.theme.CletaEatsTheme
 
