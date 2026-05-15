@@ -74,10 +74,33 @@ fun ClienteContent() {
         "Postres" to "🍰", "Tacos" to "🌮", "Pollo" to "🍗",
         "China" to "🥡", "Mariscos" to "🍤", "Bebidas" to "🥤"
     )
+    fun refreshData() {
+        coroutineScope.launch {
+            try {
+                val t = TokenManager.token?.trim() ?: return@launch
+                val response = CletaApi.retrofitService.getClienteHistorial("Bearer $t")
 
-    // 1. CARGA INICIAL
+                if (response.success) {
+                    historial = response.data ?: emptyList()
+                } else {
+                    // Si el backend responde pero con error de negocio
+                    Log.e("CletaEats", "Error de negocio en historial: ${response.error}")
+                }
+            } catch (e: Exception) {
+                // Si hay un 400, el catch lo atrapa aquí
+                Log.e("CletaEats", "Fallo de conexión o parseo en historial. Ignorando para no bloquear UI.")
+            }
+        }
+    }
+    LaunchedEffect(showOrderTracking) {
+        if (!showOrderTracking) {
+            refreshData()
+        }
+    }
+
     LaunchedEffect(Unit) {
         isLoading = true
+        refreshData()
         try {
             val token = TokenManager.token ?: return@LaunchedEffect
             val authHeader = "Bearer $token"
@@ -264,6 +287,8 @@ fun ClienteContent() {
                         if (resp.success) {
                             Log.d("CletaEats", "PEDIDO CREADO CON ÉXITO")
                             showPaymentDialog = false
+                            refreshData()
+
                             showOrderTracking = true
                             // Limpieza
                             extraNotes = ""
@@ -282,6 +307,7 @@ fun ClienteContent() {
             }
         )
     }
+
 }
 
 @Composable

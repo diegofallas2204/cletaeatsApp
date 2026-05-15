@@ -70,12 +70,16 @@ data class ComboItem(
 
 data class PedidoItem(
     val id: Int,
+    // Usamos alternate para que acepte cualquier variante de nombre que envíe el Servlet
+    @SerializedName(value = "restauranteNombre", alternate = ["restaurante_nombre", "nombre_restaurante"])
     val restauranteNombre: String? = null,
+
     val total: Double? = 0.0,
-    val estado: String? = "preparacion",
+    val estado: String? = "pendiente",
+
+    @SerializedName(value = "fechaPedido", alternate = ["fecha_pedido", "fecha"])
     val fechaPedido: String? = null,
-    // Las notas del historial suelen venir en el detalle,
-    // pero si el backend las concatena, déjalas aquí como opcionales
+
     val notas: String? = null
 )
 
