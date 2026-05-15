@@ -225,28 +225,29 @@ fun ClienteContent() {
                     } catch (e: Exception) { Log.e("CletaEats", "Error tarjeta: ${e.message}") }
                 }
             },
-            onConfirm = { paymentMethod ->
+            // Dentro de ClienteContent -> PaymentDialog
+            // Busca el bloque del PaymentDialog y reemplaza el onConfirm:
+            // Busca el PaymentDialog y asegúrate de que el onConfirm esté así:
+            onConfirm = { numero ->
+                Log.d("CletaEats", "ON_CONFIRM RECIBIDO: $numero") // Esto DEBE salir en Logcat
                 coroutineScope.launch {
-                    isSubmittingOrder = true
                     try {
+                        isSubmittingOrder = true
                         val t = TokenManager.token ?: return@launch
-
-                        // Generamos el payload con comboId alineado al Backend
                         val request = OrderUtils.createPayload(
                             restaurantId = selectedRestaurant!!.id,
-                            combo = selectedCombo!!
+                            combo = selectedCombo!!,
+                            tarjetaSeleccionada = numero,
+                            notas = extraNotes,
+                            isAgrandado = isAgrandado
                         )
-
                         val resp = CletaApi.retrofitService.createOrder("Bearer $t", request)
-
                         if (resp.success) {
                             showPaymentDialog = false
                             showOrderTracking = true
-                        } else {
-                            Log.e("CletaEats", "Error 400 o Validación: ${resp.error}")
                         }
                     } catch (e: Exception) {
-                        Log.e("CletaEats", "Fallo de red: ${e.message}")
+                        Log.e("CletaEats", "CRASH: ${e.message}")
                     } finally {
                         isSubmittingOrder = false
                     }
@@ -267,11 +268,13 @@ fun SectionHeader(title: String, icon: ImageVector? = null) {
     }
 }
 
-// OBJETO DE UTILIDAD CORREGIDO PARA EL BACKEND
 object OrderUtils {
     fun createPayload(
         restaurantId: Int,
         combo: ComboItem,
+        tarjetaSeleccionada: String,
+        notas: String? = null,
+        isAgrandado: Boolean = false,
         isFeriado: Boolean = false
     ): CreateOrderPayload {
         val subtotal = combo.precio
@@ -281,7 +284,6 @@ object OrderUtils {
 
         val formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
         val ahora = LocalDateTime.now().format(formatter)
-        val entregaEstimada = LocalDateTime.now().plusMinutes(45).format(formatter)
 
         return CreateOrderPayload(
             pedido = OrderRequest(
@@ -292,12 +294,15 @@ object OrderUtils {
                 total = total,
                 distanciaKm = 5.0,
                 fechaPedido = ahora,
-                fechaEntrega = entregaEstimada,
+                fechaEntrega = null,
+                numeroTarjeta = tarjetaSeleccionada, // ASIGNACIÓN CORRECTA
                 detalles = listOf(
                     OrderItem(
-                        comboId = combo.id, // CAMBIADO: 'productoId' por 'comboId'
+                        comboId = combo.id,
                         cantidad = 1,
-                        precio = combo.precio
+                        precio = combo.precio,
+                        notas = notas,
+                        agrandado = isAgrandado
                     )
                 )
             ),

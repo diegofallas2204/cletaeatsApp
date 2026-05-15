@@ -1,5 +1,6 @@
 package com.cletaeats.ui.components
 
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -12,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import com.cletaeats.network.ComboItem
 import com.cletaeats.network.MetodoPago
 import com.cletaeats.ui.theme.*
+import androidx.compose.foundation.layout.size // <--- Asegúrate de que esta esté presente
 
 @Composable
 fun CheckoutDialog(
@@ -67,67 +69,78 @@ fun PaymentDialog(
     onSaveCard: (MetodoPago) -> Unit,
     onConfirm: (String) -> Unit
 ) {
-    var selectedPayment by remember { mutableStateOf("Efectivo") }
-    var showNewCardForm by remember { mutableStateOf(false) }
-    var numeroTarjeta by remember { mutableStateOf("") }
-    var fechaVencimiento by remember { mutableStateOf("") }
+    // ESTADO CRÍTICO: Forzamos la selección de la primera tarjeta si existe
+    var selectedValue by remember(tarjetas) {
+        mutableStateOf(tarjetas.firstOrNull()?.numeroTarjeta ?: "")
+    }
+    var showForm by remember { mutableStateOf(tarjetas.isEmpty()) }
+
+    var num by remember { mutableStateOf("") }
+    var exp by remember { mutableStateOf("") }
     var cvv by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Método de Pago", fontWeight = FontWeight.Bold, color = BrownDark) },
+        title = { Text("Método de Pago", fontWeight = FontWeight.Bold) },
         text = {
-            Column {
-                if (!showNewCardForm) {
-                    // Opciones de pago
-                    Row(Modifier.fillMaxWidth().clickable { selectedPayment = "Efectivo" }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = selectedPayment == "Efectivo", onClick = { selectedPayment = "Efectivo" }, colors = RadioButtonDefaults.colors(selectedColor = BrownDark))
-                        Text("💵 Efectivo")
-                    }
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (!showForm) {
                     tarjetas.forEach { tarjeta ->
-                        val last4 = if (tarjeta.numeroTarjeta.length >= 4) tarjeta.numeroTarjeta.takeLast(4) else "****"
-                        val cardLabel = "💳 Tarjeta *$last4"
-                        Row(Modifier.fillMaxWidth().clickable { selectedPayment = cardLabel }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = selectedPayment == cardLabel, onClick = { selectedPayment = cardLabel }, colors = RadioButtonDefaults.colors(selectedColor = BrownDark))
-                            Text(cardLabel)
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable { selectedValue = tarjeta.numeroTarjeta }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = (selectedValue == tarjeta.numeroTarjeta),
+                                onClick = { selectedValue = tarjeta.numeroTarjeta }
+                            )
+                            Text("💳 **** ${tarjeta.numeroTarjeta.takeLast(4)}", Modifier.padding(start = 8.dp))
                         }
                     }
-                    TextButton(onClick = { showNewCardForm = true }) { Text("+ Agregar nueva tarjeta", color = BrownMid) }
+                    TextButton(onClick = { showForm = true }) { Text("+ Agregar Tarjeta") }
                 } else {
-                    // Formulario Nueva Tarjeta
-                    OutlinedTextField(value = numeroTarjeta, onValueChange = { numeroTarjeta = it }, label = { Text("Número de Tarjeta") })
-                    Row {
-                        OutlinedTextField(value = fechaVencimiento, onValueChange = { fechaVencimiento = it }, label = { Text("MM/AA") }, modifier = Modifier.weight(1f))
-                        OutlinedTextField(value = cvv, onValueChange = { cvv = it }, label = { Text("CVV") }, modifier = Modifier.weight(1f))
-                    }
+                    OutlinedTextField(value = num, onValueChange = { num = it }, label = { Text("Número") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = exp, onValueChange = { exp = it }, label = { Text("MM/AA") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = cvv, onValueChange = { cvv = it }, label = { Text("CVV") }, modifier = Modifier.fillMaxWidth())
+
+                    // Busca el botón "Guardar y Seleccionar" y déjalo así:
                     Button(
                         onClick = {
-                            // Convertimos a Int y aseguramos que no sean nulos para que coincida con tu modelo
-                            val newCard = MetodoPago(
-                                id = 0, // O el valor por defecto que use tu API para nuevos registros
-                                numeroTarjeta = numeroTarjeta,
-                                fechaVencimiento = fechaVencimiento,
-                                cvv = cvv
-                            )
-                            onSaveCard(newCard)
-                            showNewCardForm = false
+                            if (num.isNotEmpty() && exp.isNotEmpty() && cvv.isNotEmpty()) {
+                                val nueva = MetodoPago(
+                                    numeroTarjeta = num, // Asegúrate de que este nombre coincida con tu Models.kt
+                                    fechaVencimiento = exp,
+                                    cvv = cvv
+                                )
+                                onSaveCard(nueva) // <--- ESTO ENVÍA LA TARJETA AL BACKEND
+                                selectedValue = num // La selecciona para el pedido
+                                showForm = false
+                            }
                         },
-                        modifier = Modifier.padding(top = 16.dp).fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = BrownDark)
                     ) {
-                        Text("Guardar Tarjeta")
+                        Text("Guardar y Seleccionar")
                     }
                 }
-                if (isSubmitting) CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally), color = BrownDark)
             }
         },
         confirmButton = {
-            if (!showNewCardForm) {
-                Button(onClick = { onConfirm(selectedPayment) }, enabled = !isSubmitting, colors = ButtonDefaults.buttonColors(containerColor = BrownDark)) {
-                    Text("Confirmar Pedido")
-                }
+            Button(
+                // QUITAMOS EL ENABLED TEMPORALMENTE PARA PROBAR EL CLIC
+                onClick = {
+                    Log.d("CletaEats", "BOTON CLICK: Intentando confirmar con $selectedValue")
+                    if (selectedValue.isNotEmpty()) onConfirm(selectedValue)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = BrownDark)
+            ) {
+                if (isSubmitting) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                else Text("Pagar y Finalizar")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } }
     )
 }
