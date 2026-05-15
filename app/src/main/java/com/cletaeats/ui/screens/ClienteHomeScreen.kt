@@ -21,11 +21,10 @@ import com.cletaeats.ui.theme.*
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClienteHomeScreen(onLogout: () -> Unit) {
-    val userRole = TokenManager.rol ?: "cliente"
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -40,7 +39,6 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         }
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            // Simplificado para asegurar que siempre cargue el contenido del cliente por ahora
             ClienteContent()
         }
     }
@@ -77,26 +75,19 @@ fun ClienteContent() {
         "China" to "🥡", "Mariscos" to "🍤", "Bebidas" to "🥤"
     )
 
-    // 1. CARGA INICIAL (Restaurantes, Historial, Tarjetas)
+    // 1. CARGA INICIAL
     LaunchedEffect(Unit) {
         isLoading = true
         try {
-            val token = TokenManager.token
-            if (token == null) {
-                Log.e("CletaEats", "Token es NULO. Redirigiendo o fallando.")
-                return@LaunchedEffect
-            }
+            val token = TokenManager.token ?: return@LaunchedEffect
             val authHeader = "Bearer $token"
 
-            // Restaurantes
             val restResp = CletaApi.retrofitService.getRestaurantes()
             if (restResp.success) restaurantes = restResp.data ?: emptyList()
 
-            // Historial
             val histResp = CletaApi.retrofitService.getClienteHistorial(authHeader)
             if (histResp.success) historial = histResp.data ?: emptyList()
 
-            // Tarjetas
             val tarjetasResp = CletaApi.retrofitService.getTarjetas(authHeader)
             if (tarjetasResp.success) tarjetasGuardadas = tarjetasResp.data ?: emptyList()
 
@@ -107,11 +98,11 @@ fun ClienteContent() {
         }
     }
 
-    // 2. CARGA DE COMBOS (Cuando se toca un restaurante)
+    // 2. CARGA DE COMBOS
     LaunchedEffect(selectedRestaurant) {
         if (selectedRestaurant != null) {
             isMenuLoading = true
-            menuCombos = emptyList() // Limpiar menú anterior
+            menuCombos = emptyList()
             try {
                 val token = TokenManager.token
                 if (token != null) {
@@ -119,9 +110,7 @@ fun ClienteContent() {
                         token = "Bearer $token",
                         restauranteId = selectedRestaurant!!.id
                     )
-                    if (response.success) {
-                        menuCombos = response.data ?: emptyList()
-                    }
+                    if (response.success) menuCombos = response.data ?: emptyList()
                 }
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error cargando combos: ${e.message}")
@@ -153,9 +142,7 @@ fun ClienteContent() {
             }
         )
     } else {
-        // VISTA PRINCIPAL
         Column(Modifier.fillMaxSize().background(Cream)) {
-            // Buscador
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -211,7 +198,7 @@ fun ClienteContent() {
         }
     }
 
-    // --- LÓGICA DE DIÁLOGOS ---
+    // --- DIÁLOGOS ---
     if (showCheckoutDialog && selectedCombo != null) {
         CheckoutDialog(
             combo = selectedCombo!!, notes = extraNotes, isAgrandado = isAgrandado,
@@ -234,9 +221,7 @@ fun ClienteContent() {
                     try {
                         val t = TokenManager.token ?: return@launch
                         val resp = CletaApi.retrofitService.guardarTarjeta("Bearer $t", nuevaTarjeta)
-                        if (resp.success && resp.data != null) {
-                            tarjetasGuardadas = tarjetasGuardadas + resp.data
-                        }
+                        if (resp.success && resp.data != null) tarjetasGuardadas = tarjetasGuardadas + resp.data
                     } catch (e: Exception) { Log.e("CletaEats", "Error tarjeta: ${e.message}") }
                 }
             },
@@ -246,7 +231,7 @@ fun ClienteContent() {
                     try {
                         val t = TokenManager.token ?: return@launch
 
-                        // Usamos el builder corregido
+                        // Generamos el payload con comboId alineado al Backend
                         val request = OrderUtils.createPayload(
                             restaurantId = selectedRestaurant!!.id,
                             combo = selectedCombo!!
@@ -258,7 +243,6 @@ fun ClienteContent() {
                             showPaymentDialog = false
                             showOrderTracking = true
                         } else {
-                            // REGLA: Log claro con tag CletaEats
                             Log.e("CletaEats", "Error 400 o Validación: ${resp.error}")
                         }
                     } catch (e: Exception) {
@@ -283,8 +267,7 @@ fun SectionHeader(title: String, icon: ImageVector? = null) {
     }
 }
 
-
-
+// OBJETO DE UTILIDAD CORREGIDO PARA EL BACKEND
 object OrderUtils {
     fun createPayload(
         restaurantId: Int,
@@ -296,7 +279,6 @@ object OrderUtils {
         val envio = 1500.0
         val total = subtotal + iva + envio
 
-        // Formato exacto: 2026-05-15T10:00:00
         val formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
         val ahora = LocalDateTime.now().format(formatter)
         val entregaEstimada = LocalDateTime.now().plusMinutes(45).format(formatter)
@@ -313,7 +295,7 @@ object OrderUtils {
                 fechaEntrega = entregaEstimada,
                 detalles = listOf(
                     OrderItem(
-                        productoId = combo.id,
+                        comboId = combo.id, // CAMBIADO: 'productoId' por 'comboId'
                         cantidad = 1,
                         precio = combo.precio
                     )

@@ -88,7 +88,7 @@ data class OrderRequest(
 )
 
 data class OrderItem(
-    val productoId: Int,
+    val comboId: Int,
     val cantidad: Int,
     val precio: Double
 )
