@@ -228,26 +228,53 @@ fun ClienteContent() {
             // Dentro de ClienteContent -> PaymentDialog
             // Busca el bloque del PaymentDialog y reemplaza el onConfirm:
             // Busca el PaymentDialog y asegúrate de que el onConfirm esté así:
-            onConfirm = { numero ->
-                Log.d("CletaEats", "ON_CONFIRM RECIBIDO: $numero") // Esto DEBE salir en Logcat
+            onConfirm = { numeroTarjetaFinal ->
+                Log.d("CletaEats", "ON_CONFIRM RECIBIDO: $numeroTarjetaFinal")
+
+                // VALIDACIÓN DE SEGURIDAD PRE-REQUEST
+                if (selectedRestaurant == null) {
+                    Log.e("CletaEats", "ERROR: Restaurante es nulo")
+                    return@PaymentDialog
+                }
+                if (selectedCombo == null) {
+                    Log.e("CletaEats", "ERROR: Combo es nulo")
+                    return@PaymentDialog
+                }
+
                 coroutineScope.launch {
+                    isSubmittingOrder = true
                     try {
-                        isSubmittingOrder = true
-                        val t = TokenManager.token ?: return@launch
+                        val t = TokenManager.token ?: run {
+                            Log.e("CletaEats", "ERROR: Token es nulo")
+                            return@launch
+                        }
+
+                        Log.d("CletaEats", "Construyendo Payload para restaurante: ${selectedRestaurant?.id}")
+
                         val request = OrderUtils.createPayload(
                             restaurantId = selectedRestaurant!!.id,
                             combo = selectedCombo!!,
-                            tarjetaSeleccionada = numero,
+                            tarjetaSeleccionada = numeroTarjetaFinal,
                             notas = extraNotes,
                             isAgrandado = isAgrandado
                         )
+
                         val resp = CletaApi.retrofitService.createOrder("Bearer $t", request)
+
                         if (resp.success) {
+                            Log.d("CletaEats", "PEDIDO CREADO CON ÉXITO")
                             showPaymentDialog = false
                             showOrderTracking = true
+                            // Limpieza
+                            extraNotes = ""
+                            selectedCombo = null
+                            isAgrandado = false
+                        } else {
+                            Log.e("CletaEats", "Respuesta del Backend fallida: ${resp.error}")
                         }
                     } catch (e: Exception) {
-                        Log.e("CletaEats", "CRASH: ${e.message}")
+                        Log.e("CletaEats", "FALLO CRÍTICO EN REQUEST: ${e.message}")
+                        e.printStackTrace()
                     } finally {
                         isSubmittingOrder = false
                     }
