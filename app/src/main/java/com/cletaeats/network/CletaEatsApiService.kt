@@ -1,98 +1,12 @@
 package com.cletaeats.network
 
+import com.google.gson.annotations.SerializedName
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 import okhttp3.ResponseBody
 
-private const val BASE_URL = "http://10.0.2.2:8080/"
-
-// --- AUTH MODELS ---
-data class LoginRequest(
-    val username: String,
-    val password: String
-)
-
-data class RegisterRequest(
-    val username: String,
-    val password: String,
-    val rol: String
-)
-
-data class LoginResponse(
-    val success: Boolean,
-    val token: String?,
-    val rol: String?,
-    val error: String?,
-    val data: LoginData? = null
-)
-
-data class LoginData(
-    val token: String?,
-    val rol: String?
-)
-
-// --- GENERIC RESPONSE ---
-data class CletaResponse<T>(
-    val success: Boolean,
-    val data: T?,
-    val error: String?
-)
-
-// --- DOMAIN MODELS ---
-data class RestauranteItem(
-    val id: Int,
-    val nombre: String,
-    val cedulaJuridica: String,
-    val direccion: String,
-    val tipoComida: String? = null
-)
-
-data class ComboItem(
-    val id: Int,
-    val restauranteId: Int,
-    val numeroCombo: Int,
-    val nombre: String,
-    val precio: Double
-)
-
-data class PedidoItem(
-    val id: Int,
-    val restauranteId: Int?,
-    val restauranteNombre: String? = null,
-    val total: Double?,
-    val estado: String?,
-    val fecha: String? = null
-)
-
-data class CreateOrderPayload(
-    val pedido: OrderRequest,
-    val esFeriado: Boolean = false
-)
-
-data class OrderRequest(
-    val restauranteId: Int,
-    val detalles: List<OrderItem>
-)
-
-data class OrderItem(
-    val comboId: Int,
-    val cantidad: Int,
-    val agrandado: Boolean = false,
-    val notas: String? = null
-)
-
-data class UpdateStatusRequest(
-    val estado: String
-)
-
-data class MetodoPago(
-    val id: Int? = null,
-    val clienteId: Int? = null,
-    val numeroTarjeta: String,
-    val fechaVencimiento: String,
-    val cvv: String
-)
+private const val BASE_URL = "https://cletaeatsbe-production.up.railway.app/"
 
 interface CletaApiService {
     @POST("api/usuarios/login")
