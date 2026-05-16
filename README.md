@@ -18,8 +18,8 @@ Actualmente, **solo está implementada la interfaz de aplicación para el rol de
 
 > **⚠️ IMPORTANTE - REGISTRO / LOGIN:** 
 Para asegurar el correcto funcionamiento sin errores de roles cruzados, se recomienda registrarse e iniciar sesión utilizando el rol/cuenta de usuario proporcionado para clientes de la siguiente manera:
-> * **Usuario / Correo:** `cliente@cletaeats.com` *(O usar el correo designado)*
-> * **Contraseña:** Asegúrate de recordar tus credenciales de registro.
+> * **Usuario:** cliente1
+> * **Contraseña:** pass1234
 
 ## 💳 Proceso de Pago en Pedidos
 
