@@ -1,4 +1,5 @@
 # CletaEats - Aplicación Móvil Android
+Amanda Zamora y Diego Fallas
 
 Aplicación móvil desarrollada nativamente para Android enfocada en la plataforma **CletaEats**. 
 Este cliente permite realizar el registro, la autenticación y las órdenes de comida conectados a una API Backend propietaria de manera remota. 
