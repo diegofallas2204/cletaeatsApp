@@ -6,8 +6,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 import okhttp3.ResponseBody
 
-private const val BASE_URL = "http://10.0.2.2:8080/"
-
+private const val BASE_URL = "https://cletaeatsbe-production.up.railway.app/"
 
 interface CletaApiService {
     @POST("api/usuarios/login")
