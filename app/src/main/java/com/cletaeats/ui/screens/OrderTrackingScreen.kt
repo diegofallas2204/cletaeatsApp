@@ -73,10 +73,10 @@ fun OrderTrackingScreen(onBack: () -> Unit) {
         Button(
             onClick = onBack,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = BrownDark),
+            colors = ButtonDefaults.buttonColors(containerColor = BrownDark, contentColor = Color.White),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Text("Entendido", modifier = Modifier.padding(8.dp))
+            Text("Entendido", color = Color.White, modifier = Modifier.padding(8.dp))
         }
     }
 }

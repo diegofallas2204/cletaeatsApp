@@ -4,12 +4,16 @@ import android.util.Log
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,6 +39,17 @@ fun RegisterScreen(
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    // VALIDATION RULES
+    val isUsernameValid = username.matches(Regex("^[a-zA-Z0-9_]{3,20}$"))
+    val isPasswordValid = password.length >= 6
+    val isNombreValid = nombre.trim().length >= 3 && nombre.all { it.isLetter() || it.isWhitespace() }
+    val isCedulaValid = cedula.length in 9..12
+    val isEmailValid = email.isNotEmpty() && android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
+    val isTelefonoValid = telefono.length in 8..15
+    val isDireccionValid = direccion.trim().length >= 10
+
+    val isFormValid = isUsernameValid && isPasswordValid && isNombreValid && isCedulaValid && isEmailValid && isTelefonoValid && isDireccionValid
+
     Box(modifier = Modifier.fillMaxSize().background(Cream)) {
         Column(
             modifier = Modifier
@@ -53,45 +68,123 @@ fun RegisterScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            CletaInput(username, { username = it }, "Usuario")
-            CletaInput(password, { password = it }, "Contraseña", isPassword = true)
-            CletaInput(nombre, { nombre = it }, "Nombre Completo")
-            CletaInput(cedula, { cedula = it }, "Cédula")
-            CletaInput(email, { email = it }, "Correo Electrónico")
-            CletaInput(telefono, { telefono = it }, "Teléfono")
-            CletaInput(direccion, { direccion = it }, "Dirección Exacta", singleLine = false)
+            CletaInput(
+                value = username,
+                onValueChange = { input ->
+                    val filtered = input.filter { it.isLetterOrDigit() || it == '_' }
+                    if (filtered.length <= 20) username = filtered
+                },
+                label = "Usuario",
+                isError = username.isNotEmpty() && !isUsernameValid,
+                supportingText = if (username.isNotEmpty() && !isUsernameValid) "Mínimo 3 caract. (letras, num, _)" else null
+            )
+            CletaInput(
+                value = password,
+                onValueChange = { input ->
+                    if (input.length <= 30) password = input
+                },
+                label = "Contraseña",
+                isPassword = true,
+                isError = password.isNotEmpty() && !isPasswordValid,
+                supportingText = if (password.isNotEmpty() && !isPasswordValid) "Mínimo 6 caracteres" else null
+            )
+            CletaInput(
+                value = nombre,
+                onValueChange = { input ->
+                    val filtered = input.filter { it.isLetter() || it.isWhitespace() }
+                    if (filtered.length <= 50) nombre = filtered
+                },
+                label = "Nombre Completo",
+                isError = nombre.isNotEmpty() && !isNombreValid,
+                supportingText = if (nombre.isNotEmpty() && !isNombreValid) "Mínimo 3 letras (solo letras/espacios)" else null
+            )
+            CletaInput(
+                value = cedula,
+                onValueChange = { input ->
+                    val filtered = input.filter { it.isDigit() }
+                    if (filtered.length <= 12) cedula = filtered
+                },
+                label = "Cédula",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = cedula.isNotEmpty() && !isCedulaValid,
+                supportingText = if (cedula.isNotEmpty() && !isCedulaValid) "Debe ser de 9 a 12 dígitos" else null
+            )
+            CletaInput(
+                value = email,
+                onValueChange = { input ->
+                    if (input.length <= 50) email = input.trim()
+                },
+                label = "Correo Electrónico",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                isError = email.isNotEmpty() && !isEmailValid,
+                supportingText = if (email.isNotEmpty() && !isEmailValid) "Correo inválido" else null
+            )
+            CletaInput(
+                value = telefono,
+                onValueChange = { input ->
+                    val filtered = input.filter { it.isDigit() }
+                    if (filtered.length <= 15) telefono = filtered
+                },
+                label = "Teléfono",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = telefono.isNotEmpty() && !isTelefonoValid,
+                supportingText = if (telefono.isNotEmpty() && !isTelefonoValid) "Debe ser de 8 a 15 dígitos" else null
+            )
+            CletaInput(
+                value = direccion,
+                onValueChange = { input ->
+                    if (input.length <= 150) direccion = input
+                },
+                label = "Dirección Exacta",
+                singleLine = false,
+                isError = direccion.isNotEmpty() && !isDireccionValid,
+                supportingText = if (direccion.isNotEmpty() && !isDireccionValid) "Mínimo 10 caracteres" else null
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = {
-                    scope.launch {
-                        isLoading = true
-                        try {
-                            val request = RegisterRequest(
-                                username, password, rol, nombre, cedula, direccion, telefono, email
-                            )
-                            val resp = CletaApi.retrofitService.register(request)
-                            if (resp.success) {
-                                onRegisterSuccess()
-                            } else {
-                                // Nota: Usamos 'error' en lugar de 'mensaje' para coincidir con ApiResponse
-                                Log.e("CletaEats", "Error: ${resp.error ?: "Error desconocido"}")
+                    if (isFormValid) {
+                        scope.launch {
+                            isLoading = true
+                            try {
+                                val request = RegisterRequest(
+                                    username, password, rol, nombre, cedula, direccion, telefono, email
+                                )
+                                val resp = CletaApi.retrofitService.register(request)
+                                if (resp.success) {
+                                    onRegisterSuccess()
+                                } else {
+                                    Log.e("CletaEats", "Error: ${resp.error ?: "Error desconocido"}")
+                                }
+                            } catch (e: Exception) {
+                                Log.e("CletaEats", "Fallo: ${e.message}")
+                            } finally {
+                                isLoading = false
                             }
-                        } catch (e: Exception) {
-                            Log.e("CletaEats", "Fallo: ${e.message}")
-                        } finally {
-                            isLoading = false
                         }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(55.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = BrownDark),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = BrownDark,
+                    contentColor = Color.White,
+                    disabledContainerColor = Color.LightGray,
+                    disabledContentColor = Color.DarkGray
+                ),
                 shape = RoundedCornerShape(12.dp),
-                enabled = !isLoading
+                enabled = isFormValid && !isLoading
             ) {
-                if (isLoading) CircularProgressIndicator(color = Cream, modifier = Modifier.size(24.dp))
-                else Text("Registrarse", color = Cream, fontWeight = FontWeight.Bold)
+                if (isLoading) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.PersonAdd,
+                        contentDescription = "Registrarse",
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
 
             TextButton(onClick = onBackToLogin) {
@@ -116,7 +209,16 @@ private fun RoleCard(label: String, isSelected: Boolean, modifier: Modifier, onC
 }
 
 @Composable
-private fun CletaInput(value: String, onValueChange: (String) -> Unit, label: String, isPassword: Boolean = false, singleLine: Boolean = true) {
+private fun CletaInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    isPassword: Boolean = false,
+    singleLine: Boolean = true,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    isError: Boolean = false,
+    supportingText: String? = null
+) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -125,10 +227,13 @@ private fun CletaInput(value: String, onValueChange: (String) -> Unit, label: St
         singleLine = singleLine,
         visualTransformation = if (isPassword) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         shape = RoundedCornerShape(12.dp),
+        keyboardOptions = keyboardOptions,
+        isError = isError,
+        supportingText = supportingText?.let { { Text(it, color = MaterialTheme.colorScheme.error) } },
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = OrangeSoft,
             unfocusedBorderColor = BrownLight,
             focusedLabelColor = BrownDark
         )
     )
-}
+}
