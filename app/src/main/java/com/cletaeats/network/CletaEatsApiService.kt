@@ -41,6 +41,12 @@ interface CletaApiService {
     @POST("api/cliente/tarjetas")
     suspend fun guardarTarjeta(@Header("Authorization") token: String, @Body tarjeta: MetodoPago): CletaResponse<MetodoPago>
 
+    @PUT("api/cliente/pedidos/{pedidoId}/cancelar")
+    suspend fun cancelarPedido(
+        @Header("Authorization") token: String,
+        @Path("pedidoId") pedidoId: Int
+    ): CletaResponse<String>
+
     // Repartidor
     @GET("api/repartidor/pedidos")
     suspend fun getRepartidorPedidos(@Header("Authorization") token: String): CletaResponse<List<PedidoItem>>

@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.cletaeats.network.*
 import com.cletaeats.ui.components.*
 import com.cletaeats.ui.theme.*
+import com.cletaeats.ui.tracking.*
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -67,6 +68,11 @@ fun ClienteContent() {
     var isSubmittingOrder by remember { mutableStateOf(false) }
     var tarjetasGuardadas by remember { mutableStateOf<List<MetodoPago>>(emptyList()) }
     val coroutineScope = rememberCoroutineScope()
+
+    // Tracking & Cancellation States
+    var orderToTrack by remember { mutableStateOf<PedidoItem?>(null) }
+    var orderToCancel by remember { mutableStateOf<PedidoItem?>(null) }
+    var latestCreatedOrder by remember { mutableStateOf<PedidoItem?>(null) }
 
     val categorias = listOf(
         "Pizza" to "🍕", "Burger" to "🍔", "Pasta" to "🍝",
@@ -144,9 +150,23 @@ fun ClienteContent() {
     }
 
     // --- RENDERIZADO DE VISTAS ---
-    if (showOrderTracking) {
+    if (orderToTrack != null) {
+        val trackingVm = remember(orderToTrack) { TrackingViewModel(orderToTrack!!) }
+        OrderTrackingMapScreen(
+            viewModel = trackingVm,
+            onBack = { 
+                orderToTrack = null 
+                refreshData() 
+            },
+            onOrderCancelled = {
+                orderToTrack = null
+                refreshData()
+            }
+        )
+    } else if (showOrderTracking) {
         OrderTrackingScreen(onBack = {
             showOrderTracking = false
+            orderToTrack = latestCreatedOrder
             selectedRestaurant = null
         })
     } else if (isLoading) {
@@ -213,7 +233,17 @@ fun ClienteContent() {
                 if (selectedCategory == null && searchQuery.isEmpty()) {
                     stickyHeader { SectionHeader("Historial", Icons.Default.History) }
                     items(historial) { pedido ->
-                        Box(Modifier.padding(horizontal = 16.dp)) { OrderCard(pedido) }
+                        Box(Modifier.padding(horizontal = 16.dp)) { 
+                            OrderCard(
+                                pedido = pedido,
+                                onTrackClick = {
+                                    orderToTrack = pedido
+                                },
+                                onCancelClick = {
+                                    orderToCancel = pedido
+                                }
+                            )
+                        }
                     }
                 }
                 item { Spacer(Modifier.height(80.dp)) }
@@ -286,6 +316,16 @@ fun ClienteContent() {
 
                         if (resp.success) {
                             Log.d("CletaEats", "PEDIDO CREADO CON ÉXITO")
+                            val idStr = resp.data?.replace("Pedido creado con ID: ", "")?.trim()
+                            val orderId = idStr?.toIntOrNull() ?: 0
+
+                            latestCreatedOrder = PedidoItem(
+                                id = orderId,
+                                restauranteNombre = selectedRestaurant?.nombre ?: "Restaurante",
+                                total = selectedCombo?.precio ?: 0.0,
+                                estado = "pendiente"
+                            )
+
                             showPaymentDialog = false
                             refreshData()
 
@@ -305,6 +345,34 @@ fun ClienteContent() {
                     }
                 }
             }
+        )
+    }
+
+    if (orderToCancel != null) {
+        val trackingVm = remember(orderToCancel) { TrackingViewModel(orderToCancel!!) }
+        AlertDialog(
+            onDismissRequest = { orderToCancel = null },
+            title = { Text("Cancelar Pedido", fontWeight = FontWeight.Bold, color = BrownDark) },
+            text = { Text("¿Estás seguro de que deseas cancelar este pedido? Esta acción no se puede deshacer.", color = TextDark) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        orderToCancel = null
+                        trackingVm.cancelOrder {
+                            refreshData()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("Sí, Cancelar", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { orderToCancel = null }) {
+                    Text("Cancelar", color = BrownMid)
+                }
+            },
+            containerColor = Cream
         )
     }
 

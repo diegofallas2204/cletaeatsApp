@@ -16,6 +16,9 @@ import com.cletaeats.network.PedidoItem
 import com.cletaeats.network.RestauranteItem
 import com.cletaeats.ui.theme.*
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+
 fun getCategoryEmoji(tipoComida: String?): String {
     if (tipoComida == null) return "🏪"
     val lower = tipoComida.lowercase()
@@ -52,20 +55,70 @@ fun RestaurantGridItem(rest: RestauranteItem, modifier: Modifier = Modifier, onC
 }
 
 @Composable
-fun OrderCard(pedido: PedidoItem) {
+fun OrderCard(
+    pedido: PedidoItem,
+    onTrackClick: () -> Unit = {},
+    onCancelClick: () -> Unit = {}
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onTrackClick() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = WhiteCard),
         border = BorderStroke(1.dp, CreamDark)
     ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text("📦", fontSize = 24.sp)
             Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
-                Text("Pedido #${pedido.id}", fontWeight = FontWeight.Bold)
-                Text(pedido.restauranteNombre ?: "Restaurante", style = MaterialTheme.typography.bodySmall)
+                Text("Pedido #${pedido.id}", fontWeight = FontWeight.Bold, color = BrownDark)
+                Text(pedido.restauranteNombre ?: "Restaurante", style = MaterialTheme.typography.bodySmall, color = TextMid)
+                
+                val rawStatus = pedido.estado ?: "pendiente"
+                val status = if (rawStatus == "suspendido") "cancelado" else rawStatus
+                val statusColor = when (status) {
+                    "entregado" -> GreenAccent
+                    "cancelado" -> Color.Red
+                    "camino" -> OrangeSoft
+                    "preparando" -> BrownMid
+                    else -> Color.Gray
+                }
+                Text(
+                    text = "Estado: ${status.uppercase()}",
+                    color = statusColor,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
-            Text("₡${pedido.total ?: 0.0}", fontWeight = FontWeight.Bold)
+            
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("₡${pedido.total ?: 0.0}", fontWeight = FontWeight.Bold, color = BrownDark)
+                
+                val rawStatus2 = pedido.estado ?: "pendiente"
+                val status = if (rawStatus2 == "suspendido") "cancelado" else rawStatus2
+                val isCancelable = status != "entregado" && status != "cancelado"
+                if (isCancelable) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    IconButton(
+                        onClick = { onCancelClick() },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cancelar Pedido",
+                            tint = Color.Red,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }
