@@ -16,6 +16,24 @@ import com.cletaeats.network.PedidoItem
 import com.cletaeats.network.RestauranteItem
 import com.cletaeats.ui.theme.*
 
+fun getCategoryEmoji(tipoComida: String?): String {
+    if (tipoComida == null) return "🏪"
+    val lower = tipoComida.lowercase()
+    if (lower.contains("pizza")) return "🍕"
+    if (lower.contains("burger") || lower.contains("hamburguesa")) return "🍔"
+    if (lower.contains("pasta") || lower.contains("tallarines") || lower.contains("italiana")) return "🍝"
+    if (lower.contains("ensalada") || lower.contains("saludable")) return "🥗"
+    if (lower.contains("sushi") || lower.contains("japonesa")) return "🍣"
+    if (lower.contains("café") || lower.contains("cafe") || lower.contains("coffee") || lower.contains("coffe")) return "☕"
+    if (lower.contains("postre") || lower.contains("repostería") || lower.contains("reposteria") || lower.contains("cake") || lower.contains("helado") || lower.contains("dulce")) return "🍰"
+    if (lower.contains("taco") || lower.contains("mexicana")) return "🌮"
+    if (lower.contains("pollo") || lower.contains("chicken")) return "🍗"
+    if (lower.contains("china") || lower.contains("asiática") || lower.contains("asiatica") || lower.contains("cantones")) return "🥡"
+    if (lower.contains("marisco") || lower.contains("pescado") || lower.contains("ceviche")) return "🍤"
+    if (lower.contains("bebida") || lower.contains("refresco") || lower.contains("jugo") || lower.contains("batido")) return "🥤"
+    return "🏪"
+}
+
 @Composable
 fun RestaurantGridItem(rest: RestauranteItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Card(
@@ -25,7 +43,7 @@ fun RestaurantGridItem(rest: RestauranteItem, modifier: Modifier = Modifier, onC
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("🏪", fontSize = 22.sp)
+            Text(getCategoryEmoji(rest.tipoComida), fontSize = 22.sp)
             Spacer(modifier = Modifier.height(16.dp))
             Text(rest.nombre, fontWeight = FontWeight.ExtraBold, color = BrownDark, maxLines = 1)
             Text(rest.direccion, style = MaterialTheme.typography.bodySmall, color = TextMid, maxLines = 2)

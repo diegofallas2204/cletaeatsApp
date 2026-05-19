@@ -3,17 +3,22 @@ package com.cletaeats.ui.components
 import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.cletaeats.network.ComboItem
 import com.cletaeats.network.MetodoPago
 import com.cletaeats.ui.theme.*
-import androidx.compose.foundation.layout.size // <--- Asegúrate de que esta esté presente
 
 @Composable
 fun CheckoutDialog(
@@ -50,8 +55,12 @@ fun CheckoutDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = BrownDark)) {
-                Text("Continuar", color = Color.White)
+            Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = BrownDark, contentColor = Color.White)) {
+                Icon(
+                    imageVector = Icons.Default.ArrowForward,
+                    contentDescription = "Continuar",
+                    modifier = Modifier.size(24.dp)
+                )
             }
         },
         dismissButton = {
@@ -79,9 +88,27 @@ fun PaymentDialog(
     var exp by remember { mutableStateOf("") }
     var cvv by remember { mutableStateOf("") }
 
+    // VALIDATION RULES
+    val isNumValid = num.length in 15..16
+    val isCvvValid = cvv.length in 3..4
+
+    // Expiration date validity (not expired)
+    val calendar = java.util.Calendar.getInstance()
+    val currentYear2Digit = calendar.get(java.util.Calendar.YEAR) % 100
+    val currentMonth = calendar.get(java.util.Calendar.MONTH) + 1
+
+    val expMonth = if (exp.length == 5 && exp.contains("/")) exp.substringBefore("/").toIntOrNull() ?: 0 else 0
+    val expYear = if (exp.length == 5 && exp.contains("/")) exp.substringAfter("/").toIntOrNull() ?: 0 else 0
+
+    val isExpFormatValid = exp.length == 5 && exp.contains("/") && expMonth in 1..12
+    val isNotExpired = expYear > currentYear2Digit || (expYear == currentYear2Digit && expMonth >= currentMonth)
+    val isExpValid = isExpFormatValid && isNotExpired
+
+    val isFormValid = isNumValid && isCvvValid && isExpValid
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Método de Pago", fontWeight = FontWeight.Bold) },
+        title = { Text("Método de Pago", fontWeight = FontWeight.Bold, color = BrownDark) },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 if (!showForm) {
@@ -96,51 +123,121 @@ fun PaymentDialog(
                                 selected = (selectedValue == tarjeta.numeroTarjeta),
                                 onClick = { selectedValue = tarjeta.numeroTarjeta }
                             )
-                            Text("💳 **** ${tarjeta.numeroTarjeta.takeLast(4)}", Modifier.padding(start = 8.dp))
+                            Text("💳 **** ${tarjeta.numeroTarjeta.takeLast(4)}", Modifier.padding(start = 8.dp), color = TextDark)
                         }
                     }
-                    TextButton(onClick = { showForm = true }) { Text("+ Agregar Tarjeta") }
+                    TextButton(onClick = { showForm = true }) { Text("+ Agregar Tarjeta", color = BrownDark, fontWeight = FontWeight.Bold) }
                 } else {
-                    OutlinedTextField(value = num, onValueChange = { num = it }, label = { Text("Número") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = exp, onValueChange = { exp = it }, label = { Text("MM/AA") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = cvv, onValueChange = { cvv = it }, label = { Text("CVV") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(
+                        value = num,
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() }
+                            if (filtered.length <= 16) num = filtered
+                        },
+                        label = { Text("Número de Tarjeta") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = num.isNotEmpty() && !isNumValid,
+                        supportingText = if (num.isNotEmpty() && !isNumValid) { { Text("15 o 16 dígitos", color = MaterialTheme.colorScheme.error) } } else null,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    )
+                    OutlinedTextField(
+                        value = exp,
+                        onValueChange = { input ->
+                            val clean = input.filter { it.isDigit() }
+                            if (clean.length <= 4) {
+                                exp = if (clean.length > 2) {
+                                    "${clean.substring(0, 2)}/${clean.substring(2)}"
+                                } else {
+                                    clean
+                                }
+                            }
+                        },
+                        label = { Text("Expiración (MM/AA)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = exp.isNotEmpty() && !isExpValid,
+                        supportingText = if (exp.isNotEmpty()) {
+                            if (!isExpFormatValid) {
+                                { Text("Formato MM/AA inválido", color = MaterialTheme.colorScheme.error) }
+                            } else if (!isNotExpired) {
+                                { Text("La tarjeta está vencida", color = MaterialTheme.colorScheme.error) }
+                            } else null
+                        } else null,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    )
+                    OutlinedTextField(
+                        value = cvv,
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() }
+                            if (filtered.length <= 4) cvv = filtered
+                        },
+                        label = { Text("CVV") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = cvv.isNotEmpty() && !isCvvValid,
+                        supportingText = if (cvv.isNotEmpty() && !isCvvValid) { { Text("3 o 4 dígitos", color = MaterialTheme.colorScheme.error) } } else null,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    )
 
-                    // Busca el botón "Guardar y Seleccionar" y déjalo así:
                     Button(
                         onClick = {
-                            if (num.isNotEmpty() && exp.isNotEmpty() && cvv.isNotEmpty()) {
+                            if (isFormValid) {
                                 val nueva = MetodoPago(
-                                    numeroTarjeta = num, // Asegúrate de que este nombre coincida con tu Models.kt
+                                    numeroTarjeta = num,
                                     fechaVencimiento = exp,
                                     cvv = cvv
                                 )
-                                onSaveCard(nueva) // <--- ESTO ENVÍA LA TARJETA AL BACKEND
-                                selectedValue = num // La selecciona para el pedido
+                                onSaveCard(nueva)
+                                selectedValue = num
                                 showForm = false
                             }
                         },
+                        enabled = isFormValid,
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = BrownDark)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = BrownDark,
+                            contentColor = Color.White,
+                            disabledContainerColor = Color.LightGray,
+                            disabledContentColor = Color.DarkGray
+                        )
                     ) {
-                        Text("Guardar y Seleccionar")
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = "Guardar y Seleccionar",
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
                 }
             }
         },
         confirmButton = {
+            val isConfirmEnabled = selectedValue.isNotEmpty() && !isSubmitting
             Button(
-                // QUITAMOS EL ENABLED TEMPORALMENTE PARA PROBAR EL CLIC
                 onClick = {
                     Log.d("CletaEats", "BOTON CLICK: Intentando confirmar con $selectedValue")
                     if (selectedValue.isNotEmpty()) onConfirm(selectedValue)
                 },
+                enabled = isConfirmEnabled,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = BrownDark)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = BrownDark,
+                    contentColor = Color.White,
+                    disabledContainerColor = Color.LightGray,
+                    disabledContentColor = Color.DarkGray
+                )
             ) {
-                if (isSubmitting) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
-                else Text("Pagar y Finalizar")
+                if (isSubmitting) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Pagar y Finalizar",
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } }
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cerrar", color = BrownMid, fontWeight = FontWeight.Bold) }
+        },
+        containerColor = Cream
     )
 }

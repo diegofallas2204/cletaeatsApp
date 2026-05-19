@@ -16,6 +16,9 @@ import com.cletaeats.ui.screens.AdminDashboardScreen
 import com.cletaeats.ui.screens.ClienteHomeScreen
 import com.cletaeats.ui.screens.RepartidorHomeScreen
 import com.cletaeats.ui.theme.CletaEatsTheme
+import com.cletaeats.utils.connectivityState
+import com.cletaeats.utils.ConnectionState
+import com.cletaeats.ui.components.NoInternetScreen
 
 class MainActivity : ComponentActivity() {
 
@@ -25,47 +28,53 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             CletaEatsTheme {
-                // 1. Declarar el estado en el nivel superior
-                var currentScreen by remember {
-                    mutableStateOf(if (TokenManager.token == null) "login" else "home")
-                }
-
-                // Obtener el rol actual desde el TokenManager
-                val currentRole = TokenManager.rol ?: "cliente"
+                val connectionState by connectivityState()
 
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // 2. Lógica de Navegación centralizada
-                    when (currentScreen) {
-                        "login" -> {
-                            LoginScreen(
-                                onLoginSuccess = { currentScreen = "home" },
-                                onNavigateToRegister = { currentScreen = "register" }
-                            )
+                    if (connectionState is ConnectionState.Unavailable) {
+                        NoInternetScreen()
+                    } else {
+                        // 1. Declarar el estado en el nivel superior
+                        var currentScreen by remember {
+                            mutableStateOf(if (TokenManager.token == null) "login" else "home")
                         }
-                        "register" -> {
-                            RegisterScreen(
-                                onRegisterSuccess = { currentScreen = "login" },
-                                onBackToLogin = { currentScreen = "login" }
-                            )
-                        }
-                        "home" -> {
-                            // 3. Ruteo por Rol dentro de Home
-                            when (currentRole.lowercase()) {
-                                "admin" -> AdminDashboardScreen(onLogout = {
-                                    TokenManager.logout()
-                                    currentScreen = "login"
-                                })
-                                "repartidor" -> RepartidorHomeScreen(onLogout = {
-                                    TokenManager.logout()
-                                    currentScreen = "login"
-                                })
-                                else -> ClienteHomeScreen(onLogout = {
-                                    TokenManager.logout()
-                                    currentScreen = "login"
-                                })
+
+                        // Obtener el rol actual desde el TokenManager
+                        val currentRole = TokenManager.rol ?: "cliente"
+
+                        // 2. Lógica de Navegación centralizada
+                        when (currentScreen) {
+                            "login" -> {
+                                LoginScreen(
+                                    onLoginSuccess = { currentScreen = "home" },
+                                    onNavigateToRegister = { currentScreen = "register" }
+                                )
+                            }
+                            "register" -> {
+                                RegisterScreen(
+                                    onRegisterSuccess = { currentScreen = "login" },
+                                    onBackToLogin = { currentScreen = "login" }
+                                )
+                            }
+                            "home" -> {
+                                // 3. Ruteo por Rol dentro de Home
+                                when (currentRole.lowercase()) {
+                                    "admin" -> AdminDashboardScreen(onLogout = {
+                                        TokenManager.logout()
+                                        currentScreen = "login"
+                                    })
+                                    "repartidor" -> RepartidorHomeScreen(onLogout = {
+                                        TokenManager.logout()
+                                        currentScreen = "login"
+                                    })
+                                    else -> ClienteHomeScreen(onLogout = {
+                                        TokenManager.logout()
+                                        currentScreen = "login"
+                                    })
+                                }
                             }
                         }
                     }
