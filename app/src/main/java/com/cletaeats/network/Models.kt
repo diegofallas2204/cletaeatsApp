@@ -4,7 +4,6 @@ import com.google.gson.annotations.SerializedName
 
 // Estructura de respuesta unificada obligatoria
 
-
 // Modelo del Combo basado en la DB (MySQL)
 data class Combo(
     val numero_combo: Int,
@@ -12,6 +11,7 @@ data class Combo(
     val precio: Double,
     val descripcion: String?
 )
+
 // --- AUTH MODELS ---
 data class LoginRequest(
     val username: String,
@@ -44,7 +44,6 @@ data class LoginData(
 
 // --- GENERIC RESPONSE ---
 data class CletaResponse<T>(
-    // Usamos el nombre 'success' pero permitimos que lea 'exito' si viene así
     @SerializedName(value = "success", alternate = ["exito"])
     val success: Boolean,
     val data: T?,
@@ -68,9 +67,14 @@ data class ComboItem(
     val precio: Double
 )
 
+data class CartItem(
+    val combo: ComboItem,
+    var cantidad: Int,
+    var agrandado: Boolean = false
+)
+
 data class PedidoItem(
     val id: Int,
-    // Usamos alternate para que acepte cualquier variante de nombre que envíe el Servlet
     @SerializedName(value = "restauranteNombre", alternate = ["restaurante_nombre", "nombre_restaurante"])
     val restauranteNombre: String? = null,
 
@@ -91,7 +95,6 @@ data class CreateOrderPayload(
 data class MetodoPago(
     val id: Int? = null,
     val clienteId: Int? = null,
-    // Forzamos que Retrofit envíe "numeroTarjeta" al JSON
     @SerializedName("numeroTarjeta") val numeroTarjeta: String,
     val fechaVencimiento: String,
     val cvv: String
@@ -106,10 +109,11 @@ data class OrderRequest(
     val distanciaKm: Double,
     val fechaPedido: String,
     val fechaEntrega: String?,
-    @SerializedName("numeroTarjeta") val numeroTarjeta: String, // Java CamelCase
+    @SerializedName("numeroTarjeta") val numeroTarjeta: String,
     val notas: String? = null,
     val detalles: List<OrderItem>
 )
+
 data class OrderItem(
     val comboId: Int,
     val cantidad: Int,

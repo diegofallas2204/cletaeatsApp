@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {}) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var rol by remember { mutableStateOf("cliente") } // Role selector
+    var rol by remember { mutableStateOf("cliente") } // Nuevo selector de roles
     var showError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("Credenciales inválidas. Inténtalo de nuevo.") }
     var isLoading by remember { mutableStateOf(false) }
@@ -53,7 +53,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {
             modifier = Modifier.padding(bottom = 24.dp)
         )
 
-        // Role selector card row
+        // Selector de roles (Cliente vs Repartidor)
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -133,6 +133,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {
                                 if (token != null) {
                                     TokenManager.token = token
                                     TokenManager.username = username
+                                    // Sobrescribimos el rol del TokenManager con el seleccionado en pantalla
                                     TokenManager.rol = rol
                                     onLoginSuccess()
                                 } else {

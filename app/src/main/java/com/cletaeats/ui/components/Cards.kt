@@ -138,17 +138,50 @@ fun CategoryItem(name: String, icon: String, isSelected: Boolean, onClick: () ->
 }
 
 @Composable
-fun ComboCard(combo: ComboItem, modifier: Modifier = Modifier) {
+fun ComboCard(
+    combo: ComboItem,
+    cantidadActual: Int,
+    onIncrement: () -> Unit,
+    onDecrement: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Card(
-        modifier = modifier.fillMaxWidth().height(130.dp),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = WhiteCard),
         border = BorderStroke(1.dp, CreamDark)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text("Combo #${combo.numeroCombo}", color = BrownMid, style = MaterialTheme.typography.labelSmall)
-            Text(combo.nombre, fontWeight = FontWeight.Bold, maxLines = 2, modifier = Modifier.weight(1f))
-            Text("₡${combo.precio}", fontWeight = FontWeight.ExtraBold, color = OrangeSoft)
+            Text(combo.nombre, fontWeight = FontWeight.Bold, maxLines = 2)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("₡${combo.precio}", fontWeight = FontWeight.ExtraBold, color = OrangeSoft)
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onDecrement,
+                        modifier = Modifier.size(28.dp).background(CreamDark, RoundedCornerShape(8.dp))
+                    ) {
+                        Text("-", fontWeight = FontWeight.Bold, color = BrownDark)
+                    }
+                    Text(
+                        text = cantidadActual.toString(),
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        fontWeight = FontWeight.Bold
+                    )
+                    IconButton(
+                        onClick = onIncrement,
+                        modifier = Modifier.size(28.dp).background(BrownDark, RoundedCornerShape(8.dp))
+                    ) {
+                        Text("+", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            }
         }
     }
 }

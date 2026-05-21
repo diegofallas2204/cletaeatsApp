@@ -7,7 +7,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.cletaeats.network.TokenManager
 import com.cletaeats.ui.auth.LoginScreen
@@ -37,15 +41,13 @@ class MainActivity : ComponentActivity() {
                     if (connectionState is ConnectionState.Unavailable) {
                         NoInternetScreen()
                     } else {
-                        // 1. Declarar el estado en el nivel superior
+                        // Navegación centralizada de la aplicación
                         var currentScreen by remember {
                             mutableStateOf(if (TokenManager.token == null) "login" else "home")
                         }
 
-                        // Obtener el rol actual desde el TokenManager
                         val currentRole = TokenManager.rol ?: "cliente"
 
-                        // 2. Lógica de Navegación centralizada
                         when (currentScreen) {
                             "login" -> {
                                 LoginScreen(
@@ -60,7 +62,6 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                             "home" -> {
-                                // 3. Ruteo por Rol dentro de Home
                                 when (currentRole.lowercase()) {
                                     "admin" -> AdminDashboardScreen(onLogout = {
                                         TokenManager.logout()
