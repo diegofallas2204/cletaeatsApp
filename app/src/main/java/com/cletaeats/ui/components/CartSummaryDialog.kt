@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,6 +24,7 @@ import com.cletaeats.ui.theme.*
 fun CartSummaryDialog(
     cartItems: List<CartItem>,
     onCartItemChange: (CartItem) -> Unit,
+    onDeleteCartItem: (CartItem) -> Unit,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
@@ -96,11 +99,17 @@ fun CartSummaryDialog(
                                         }
                                     }
                                     val itemTotal = (item.combo.precio + if(item.agrandado) 1500.0 else 0.0) * item.cantidad
-                                    Text(
-                                        text = "₡$itemTotal",
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = OrangeSoft
-                                    )
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(
+                                            text = "₡$itemTotal",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = OrangeSoft,
+                                            modifier = Modifier.padding(bottom = 4.dp)
+                                        )
+                                        IconButton(onClick = { onDeleteCartItem(item) }, modifier = Modifier.size(28.dp)) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Red, modifier = Modifier.size(20.dp))
+                                        }
+                                    }
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Row(

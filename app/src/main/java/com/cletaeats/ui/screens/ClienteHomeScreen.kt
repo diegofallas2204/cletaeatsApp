@@ -243,6 +243,9 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
             onCartItemChange = { changedItem ->
                 cartItems = cartItems.map { if (it.combo.id == changedItem.combo.id) changedItem else it }
             },
+            onDeleteCartItem = { item ->
+                cartItems = cartItems.filter { it.combo.id != item.combo.id }
+            },
             onDismiss = { showCartSummary = false },
             onConfirm = { showCartSummary = false; showPaymentDialog = true }
         )

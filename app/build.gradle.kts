@@ -40,15 +40,15 @@ android {
     }
 
     // Configuración portable de Java (Toolchains)
-    java {
-        toolchain {
-            languageVersion.set(JavaLanguageVersion.of(21))
-        }
-    }
+    // java {
+    //     toolchain {
+    //         languageVersion.set(JavaLanguageVersion.of(21))
+    //     }
+    // }
 
-    kotlin {
-        jvmToolchain(21)
-    }
+    // kotlin {
+    //     jvmToolchain(21)
+    // }
 }
 
 dependencies {

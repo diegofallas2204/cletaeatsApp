@@ -18,7 +18,7 @@ fun CancelOrderDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Cancelar Pedido", fontWeight = FontWeight.Bold, color = BrownDark) },
+        title = { Text("Cancelar Pedido #${order.id}", fontWeight = FontWeight.Bold, color = BrownDark) },
         text = { Text("¿Estás seguro de que deseas cancelar este pedido? Esta acción no se puede deshacer.", color = TextDark) },
         confirmButton = {
             Button(

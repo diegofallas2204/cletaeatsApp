@@ -215,8 +215,11 @@ fun ClientePerfilTab(
                                         )
                                         Spacer(Modifier.width(12.dp))
                                         Column {
+                                            val isVisa = tarjeta.numeroTarjeta.startsWith("4")
+                                            val isMastercard = tarjeta.numeroTarjeta.startsWith("5")
+                                            val cardBrand = if (isVisa) "VISA" else if (isMastercard) "Mastercard" else "Tarjeta"
                                             Text(
-                                                "💳 **** ${tarjeta.numeroTarjeta.takeLast(4)}",
+                                                "$cardBrand **** **** **** ${tarjeta.numeroTarjeta.takeLast(4)}",
                                                 fontWeight = FontWeight.Bold,
                                                 color = TextDark
                                             )

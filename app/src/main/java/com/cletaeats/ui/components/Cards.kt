@@ -19,23 +19,33 @@ import com.cletaeats.ui.theme.*
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.LocalPizza
+import androidx.compose.material.icons.filled.Fastfood
+import androidx.compose.material.icons.filled.RamenDining
+import androidx.compose.material.icons.filled.Coffee
+import androidx.compose.material.icons.filled.Icecream
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.SetMeal
+import androidx.compose.material.icons.filled.LocalDining
+import androidx.compose.material.icons.filled.LocalDrink
 
-fun getCategoryEmoji(tipoComida: String?): String {
-    if (tipoComida == null) return "🏪"
+fun getCategoryIcon(tipoComida: String?): androidx.compose.ui.graphics.vector.ImageVector {
+    if (tipoComida == null) return androidx.compose.material.icons.filled.ShoppingCart
     val lower = tipoComida.lowercase()
-    if (lower.contains("pizza")) return "🍕"
-    if (lower.contains("burger") || lower.contains("hamburguesa")) return "🍔"
-    if (lower.contains("pasta") || lower.contains("tallarines") || lower.contains("italiana")) return "🍝"
-    if (lower.contains("ensalada") || lower.contains("saludable")) return "🥗"
-    if (lower.contains("sushi") || lower.contains("japonesa")) return "🍣"
-    if (lower.contains("café") || lower.contains("cafe") || lower.contains("coffee") || lower.contains("coffe")) return "☕"
-    if (lower.contains("postre") || lower.contains("repostería") || lower.contains("reposteria") || lower.contains("cake") || lower.contains("helado") || lower.contains("dulce")) return "🍰"
-    if (lower.contains("taco") || lower.contains("mexicana")) return "🌮"
-    if (lower.contains("pollo") || lower.contains("chicken")) return "🍗"
-    if (lower.contains("china") || lower.contains("asiática") || lower.contains("asiatica") || lower.contains("cantones")) return "🥡"
-    if (lower.contains("marisco") || lower.contains("pescado") || lower.contains("ceviche")) return "🍤"
-    if (lower.contains("bebida") || lower.contains("refresco") || lower.contains("jugo") || lower.contains("batido")) return "🥤"
-    return "🏪"
+    if (lower.contains("pizza")) return androidx.compose.material.icons.filled.ShoppingCart
+    if (lower.contains("burger") || lower.contains("hamburguesa")) return androidx.compose.material.icons.filled.ShoppingCart
+    if (lower.contains("pasta") || lower.contains("tallarines") || lower.contains("italiana")) return androidx.compose.material.icons.filled.ShoppingCart
+    if (lower.contains("ensalada") || lower.contains("saludable")) return androidx.compose.material.icons.filled.ShoppingCart
+    if (lower.contains("sushi") || lower.contains("japonesa")) return androidx.compose.material.icons.filled.ShoppingCart
+    if (lower.contains("café") || lower.contains("cafe") || lower.contains("coffee") || lower.contains("coffe")) return androidx.compose.material.icons.filled.ShoppingCart
+    if (lower.contains("postre") || lower.contains("repostería") || lower.contains("reposteria") || lower.contains("cake") || lower.contains("helado") || lower.contains("dulce")) return androidx.compose.material.icons.filled.ShoppingCart
+    if (lower.contains("taco") || lower.contains("mexicana")) return androidx.compose.material.icons.filled.ShoppingCart
+    if (lower.contains("pollo") || lower.contains("chicken")) return androidx.compose.material.icons.filled.ShoppingCart
+    if (lower.contains("china") || lower.contains("asiática") || lower.contains("asiatica") || lower.contains("cantones")) return androidx.compose.material.icons.filled.ShoppingCart
+    if (lower.contains("marisco") || lower.contains("pescado") || lower.contains("ceviche")) return androidx.compose.material.icons.filled.ShoppingCart
+    if (lower.contains("bebida") || lower.contains("refresco") || lower.contains("jugo") || lower.contains("batido")) return androidx.compose.material.icons.filled.ShoppingCart
+    return androidx.compose.material.icons.filled.ShoppingCart
 }
 
 @Composable
@@ -53,7 +63,7 @@ fun RestaurantGridItem(rest: RestauranteItem, modifier: Modifier = Modifier, onC
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text(getCategoryEmoji(rest.tipoComida), fontSize = 28.sp)
+                Icon(getCategoryIcon(rest.tipoComida), contentDescription = rest.tipoComida, modifier = Modifier.size(28.dp), tint = BrownDark)
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     rest.nombre,
@@ -147,14 +157,14 @@ fun OrderCard(
 }
 
 @Composable
-fun CategoryItem(name: String, icon: String, isSelected: Boolean, onClick: () -> Unit) {
+fun CategoryItem(name: String, icon: androidx.compose.ui.graphics.vector.ImageVector, isSelected: Boolean, onClick: () -> Unit) {
     Card(
         modifier = Modifier.width(85.dp).aspectRatio(0.85f).clickable { onClick() },
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = if (isSelected) BrownDark else WhiteCard)
     ) {
         Column(Modifier.fillMaxSize(), Arrangement.Center, Alignment.CenterHorizontally) {
-            Text(icon, fontSize = 28.sp)
+            Icon(icon, contentDescription = name, modifier = Modifier.size(28.dp), tint = if (isSelected) Color.White else BrownDark)
             Text(name, color = if (isSelected) Color.White else TextDark, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
     }

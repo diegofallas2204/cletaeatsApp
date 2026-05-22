@@ -20,7 +20,6 @@ class ClienteViewModel : ViewModel() {
     private fun testConnection() {
         viewModelScope.launch {
             try {
-                val token = TokenManager.token ?: ""
                 val response = CletaApi.retrofitService.getRestaurantes()
                 cletaUiState = response.toString() // Muestra el JSON parseado
             } catch (e: Exception) {
