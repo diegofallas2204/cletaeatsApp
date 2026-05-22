@@ -9,12 +9,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import com.cletaeats.network.*
 import com.cletaeats.ui.components.*
 import com.cletaeats.ui.theme.*
 import com.cletaeats.ui.tracking.*
+import com.cletaeats.utils.LocalCacheManager
 import com.cletaeats.utils.OrderUtils
+import com.cletaeats.utils.currentConnectivityState
+import com.cletaeats.utils.ConnectionState
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,6 +33,8 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
     var searchQuery by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
     var isMenuLoading by remember { mutableStateOf(false) }
+    var userProfile by remember { mutableStateOf<UserProfile?>(null) }
+    var historialFilterStatus by remember { mutableStateOf(OrderFilterStatus.ACTIVOS) }
 
     var cartItems by remember { mutableStateOf<List<CartItem>>(emptyList()) }
     var showCartSummary by remember { mutableStateOf(false) }
@@ -37,6 +43,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
     var isSubmittingOrder by remember { mutableStateOf(false) }
     var tarjetasGuardadas by remember { mutableStateOf<List<MetodoPago>>(emptyList()) }
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var orderToTrack by remember { mutableStateOf<PedidoItem?>(null) }
     var orderToCancel by remember { mutableStateOf<PedidoItem?>(null) }
@@ -54,39 +61,120 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         }
     }
 
+    // ── Carga inicial: restaurantes con estrategia cache-first ─────────────
     LaunchedEffect(Unit) {
-        isLoading = true
-        refreshData()
-        try {
-            val token = TokenManager.token ?: return@LaunchedEffect
-            val authHeader = "Bearer $token"
-            val restResp = CletaApi.retrofitService.getRestaurantes()
-            if (restResp.success) restaurantes = restResp.data ?: emptyList()
-            val tarjetasResp = CletaApi.retrofitService.getTarjetas(authHeader)
-            if (tarjetasResp.success) tarjetasGuardadas = tarjetasResp.data ?: emptyList()
-        } catch (e: Exception) {
-            Log.e("CletaEats", "Error carga inicial: ${e.message}")
-        } finally {
-            isLoading = false
-        }
-    }
+        val token = TokenManager.token ?: return@LaunchedEffect
+        val authHeader = "Bearer $token"
+        val isOnline = context.currentConnectivityState is ConnectionState.Available
 
-    LaunchedEffect(selectedRestaurant) {
-        if (selectedRestaurant != null) {
-            isMenuLoading = true
-            menuCombos = emptyList()
-            cartItems = emptyList()
+        // 1. Mostrar caché inmediatamente si existe (evita pantalla de carga)
+        val cachedRestaurantes = LocalCacheManager.getRestaurantes()
+        if (cachedRestaurantes != null) {
+            restaurantes = cachedRestaurantes
+            isLoading = false
+            Log.d("CletaEats", "Restaurantes cargados desde caché (${cachedRestaurantes.size})")
+        } else {
+            isLoading = true
+        }
+
+        // También restaurar perfil desde caché
+        val cachedProfile = LocalCacheManager.getUserProfile()
+            ?: LocalCacheManager.getUserProfileOffline()
+        if (cachedProfile != null) userProfile = cachedProfile
+
+        // 2. Cargar historial y tarjetas siempre desde el servidor (datos dinámicos)
+        refreshData()
+
+        // 3. Actualizar restaurantes, perfil y tarjetas desde el servidor en background
+        if (isOnline) {
             try {
-                val token = TokenManager.token
-                if (token != null) {
-                    val response = CletaApi.retrofitService.getCombosByRestaurant("Bearer $token", selectedRestaurant!!.id)
-                    if (response.success) menuCombos = response.data ?: emptyList()
+                val restResp = CletaApi.retrofitService.getRestaurantes()
+                if (restResp.success) {
+                    val nuevos = restResp.data ?: emptyList()
+                    restaurantes = nuevos
+                    LocalCacheManager.saveRestaurantes(nuevos)
+                    Log.d("CletaEats", "Restaurantes actualizados desde API")
+                }
+                val tarjetasResp = CletaApi.retrofitService.getTarjetas(authHeader)
+                if (tarjetasResp.success) tarjetasGuardadas = tarjetasResp.data ?: emptyList()
+                // Cargar perfil del usuario
+                try {
+                    val perfilResp = CletaApi.retrofitService.getUserPerfil(authHeader)
+                    Log.d("CletaEats", "Respuesta perfil - success: ${perfilResp.success}, data: ${perfilResp.data}, error: ${perfilResp.error}")
+                    if (perfilResp.success && perfilResp.data != null) {
+                        userProfile = perfilResp.data
+                        LocalCacheManager.saveUserProfile(perfilResp.data)
+                        Log.d("CletaEats", "Perfil de usuario actualizado: ${perfilResp.data.nombre}")
+                    } else {
+                        Log.w("CletaEats", "Perfil response no exitoso o sin data: ${perfilResp.error}")
+                    }
+                } catch (ep: Exception) {
+                    Log.w("CletaEats", "Endpoint de perfil no disponible: ${ep.message}", ep)
                 }
             } catch (e: Exception) {
-                Log.e("CletaEats", "Error combos: ${e.message}")
-            } finally {
-                isMenuLoading = false
+                Log.e("CletaEats", "Error carga inicial desde API: ${e.message}")
+                if (restaurantes.isEmpty()) {
+                    restaurantes = LocalCacheManager.getRestaurantesOffline() ?: emptyList()
+                }
+                if (userProfile == null) {
+                    userProfile = LocalCacheManager.getUserProfileOffline()
+                }
             }
+        } else if (restaurantes.isEmpty()) {
+            restaurantes = LocalCacheManager.getRestaurantesOffline() ?: emptyList()
+            Log.w("CletaEats", "Sin conexión, usando caché offline de restaurantes")
+        }
+
+        isLoading = false
+    }
+
+    // ── Combos por restaurante: también cache-first ────────────────────────
+    LaunchedEffect(selectedRestaurant) {
+        if (selectedRestaurant != null) {
+            val restauranteId = selectedRestaurant!!.id
+            val isOnline = context.currentConnectivityState is ConnectionState.Available
+
+            // 1. Mostrar caché si existe
+            val cachedCombos = LocalCacheManager.getCombos(restauranteId)
+            if (cachedCombos != null) {
+                menuCombos = cachedCombos
+                cartItems = emptyList()
+                isMenuLoading = false
+                Log.d("CletaEats", "Combos de restaurante $restauranteId desde caché")
+            } else {
+                isMenuLoading = true
+                menuCombos = emptyList()
+                cartItems = emptyList()
+            }
+
+            // 2. Actualizar desde el servidor si hay conexión
+            if (isOnline) {
+                try {
+                    val token = TokenManager.token
+                    if (token != null) {
+                        val response = CletaApi.retrofitService
+                            .getCombosByRestaurant("Bearer $token", restauranteId)
+                        if (response.success) {
+                            val nuevosCombos = response.data ?: emptyList()
+                            menuCombos = nuevosCombos
+                            LocalCacheManager.saveCombos(restauranteId, nuevosCombos) // guardar
+                            Log.d("CletaEats", "Combos de restaurante $restauranteId actualizados")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("CletaEats", "Error combos desde API: ${e.message}")
+                    // Si falla y no había caché válido, intentar caché vencido
+                    if (menuCombos.isEmpty()) {
+                        menuCombos = LocalCacheManager.getCombosOffline(restauranteId) ?: emptyList()
+                    }
+                }
+            } else if (menuCombos.isEmpty()) {
+                // Sin conexión: intentar con caché vencido
+                menuCombos = LocalCacheManager.getCombosOffline(restauranteId) ?: emptyList()
+                Log.w("CletaEats", "Sin conexión, usando caché offline de combos")
+            }
+
+            isMenuLoading = false
         }
     }
 
@@ -127,12 +215,22 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                     )
                 } else {
                     when (activeTab) {
-                        ActiveTab.HISTORIAL -> ClienteHistorialTab(historial = historial, onTrackClick = { orderToTrack = it }, onCancelClick = { orderToCancel = it })
+                        ActiveTab.HISTORIAL -> ClienteHistorialTab(
+                            historial = historial,
+                            onTrackClick = { orderToTrack = it },
+                            onCancelClick = { orderToCancel = it },
+                            filterStatus = historialFilterStatus,
+                            onFilterChange = { historialFilterStatus = it }
+                        )
                         ActiveTab.INICIO -> ClienteInicioTab(
                             restaurantes = restaurantes, searchQuery = searchQuery, onSearchQueryChange = { searchQuery = it },
                             selectedCategory = selectedCategory, onCategorySelect = { selectedCategory = it }, onRestaurantSelect = { selectedRestaurant = it }
                         )
-                        ActiveTab.PERFIL -> ClientePerfilTab(tarjetas = tarjetasGuardadas, onAddCardClick = { showPaymentDialog = true })
+                        ActiveTab.PERFIL -> ClientePerfilTab(
+                            tarjetas = tarjetasGuardadas,
+                            userProfile = userProfile,
+                            onAddCardClick = { showPaymentDialog = true }
+                        )
                     }
                 }
             }

@@ -28,6 +28,10 @@ interface CletaApiService {
         @Path("restauranteId") restauranteId: Int
     ): CletaResponse<List<ComboItem>>
 
+    // Perfil del usuario autenticado
+    @GET("api/usuarios/perfil")
+    suspend fun getUserPerfil(@Header("Authorization") token: String): CletaResponse<UserProfile>
+
     // Cliente
     @POST("api/cliente/pedidos")
     suspend fun createOrder(@Header("Authorization") token: String, @Body request: CreateOrderPayload): CletaResponse<String>
@@ -77,14 +81,25 @@ object CletaApi {
     }
 }
 
+/**
+ * Alias de compatibilidad que delega a SessionManager.
+ * Todo el código existente que use TokenManager sigue funcionando sin cambios,
+ * pero ahora los datos se persisten en disco a través de SessionManager.
+ */
 object TokenManager {
-    var token: String? = null
-    var username: String? = null
-    var rol: String? = null
+    var token: String?
+        get() = SessionManager.token
+        set(value) { SessionManager.token = value }
+
+    var username: String?
+        get() = SessionManager.username
+        set(value) { SessionManager.username = value }
+
+    var rol: String?
+        get() = SessionManager.rol
+        set(value) { SessionManager.rol = value }
 
     fun logout() {
-        token = null
-        username = null
-        rol = null
+        SessionManager.clearSession()
     }
 }

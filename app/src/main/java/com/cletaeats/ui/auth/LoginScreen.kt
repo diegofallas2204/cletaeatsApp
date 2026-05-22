@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.cletaeats.ui.theme.*
 import com.cletaeats.network.CletaApi
 import com.cletaeats.network.LoginRequest
-import com.cletaeats.network.TokenManager
+import com.cletaeats.network.SessionManager
 import kotlinx.coroutines.launch
 
 @Composable
@@ -131,10 +131,12 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {
                             if (response.success) {
                                 val token = response.token ?: response.data?.token
                                 if (token != null) {
-                                    TokenManager.token = token
-                                    TokenManager.username = username
-                                    // Sobrescribimos el rol del TokenManager con el seleccionado en pantalla
-                                    TokenManager.rol = rol
+                                    // Guardar sesión de forma persistente en disco
+                                    SessionManager.saveSession(
+                                        token    = token,
+                                        username = username,
+                                        rol      = rol
+                                    )
                                     onLoginSuccess()
                                 } else {
                                     errorMessage = "Error: No se recibió token."

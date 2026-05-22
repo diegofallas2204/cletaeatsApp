@@ -12,6 +12,19 @@ data class Combo(
     val descripcion: String?
 )
 
+// --- PERFIL DE USUARIO ---
+data class UserProfile(
+    @SerializedName(value = "username", alternate = ["usuario"])
+    val username: String? = null,
+    val nombre: String? = null,
+    val cedula: String? = null,
+    @SerializedName(value = "direccion", alternate = ["direccion_exacta"])
+    val direccion: String? = null,
+    val telefono: String? = null,
+    val email: String? = null,
+    val rol: String? = null
+)
+
 // --- AUTH MODELS ---
 data class LoginRequest(
     val username: String,

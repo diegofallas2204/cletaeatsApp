@@ -9,6 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cletaeats.network.ComboItem
@@ -45,11 +46,33 @@ fun RestaurantGridItem(rest: RestauranteItem, modifier: Modifier = Modifier, onC
         colors = CardDefaults.cardColors(containerColor = WhiteCard),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(getCategoryEmoji(rest.tipoComida), fontSize = 22.sp)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(rest.nombre, fontWeight = FontWeight.ExtraBold, color = BrownDark, maxLines = 1)
-            Text(rest.direccion, style = MaterialTheme.typography.bodySmall, color = TextMid, maxLines = 2)
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(getCategoryEmoji(rest.tipoComida), fontSize = 28.sp)
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    rest.nombre,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = BrownDark,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = 14.sp,
+                    lineHeight = 16.sp
+                )
+            }
+            Text(
+                rest.direccion,
+                style = MaterialTheme.typography.bodySmall,
+                color = TextMid,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontSize = 12.sp
+            )
         }
     }
 }
@@ -140,47 +163,48 @@ fun CategoryItem(name: String, icon: String, isSelected: Boolean, onClick: () ->
 @Composable
 fun ComboCard(
     combo: ComboItem,
-    cantidadActual: Int,
-    onIncrement: () -> Unit,
-    onDecrement: () -> Unit,
+    onAddClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().height(150.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = WhiteCard),
         border = BorderStroke(1.dp, CreamDark)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text("Combo #${combo.numeroCombo}", color = BrownMid, style = MaterialTheme.typography.labelSmall)
-            Text(combo.nombre, fontWeight = FontWeight.Bold, maxLines = 2)
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier.padding(12.dp).fillMaxHeight(),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("₡${combo.precio}", fontWeight = FontWeight.ExtraBold, color = OrangeSoft)
-                
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                        onClick = onDecrement,
-                        modifier = Modifier.size(28.dp).background(CreamDark, RoundedCornerShape(8.dp))
-                    ) {
-                        Text("-", fontWeight = FontWeight.Bold, color = BrownDark)
-                    }
+                Column {
+                    Text("Combo #${combo.numeroCombo}", color = BrownMid, style = MaterialTheme.typography.labelSmall)
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = cantidadActual.toString(),
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                        fontWeight = FontWeight.Bold
+                        text = combo.nombre.ifBlank { "Combo" },
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        fontSize = 14.sp,
+                        lineHeight = 16.sp,
+                        color = BrownDark,
+                        modifier = Modifier.padding(end = 24.dp) // Leave space for the + button
                     )
-                    IconButton(
-                        onClick = onIncrement,
-                        modifier = Modifier.size(28.dp).background(BrownDark, RoundedCornerShape(8.dp))
-                    ) {
-                        Text("+", fontWeight = FontWeight.Bold, color = Color.White)
-                    }
                 }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("₡${combo.precio}", fontWeight = FontWeight.ExtraBold, color = OrangeSoft, fontSize = 14.sp)
+            }
+            
+            // Floating "+" Add button in the bottom right
+            IconButton(
+                onClick = onAddClick,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+                    .size(36.dp)
+                    .background(BrownDark, RoundedCornerShape(12.dp))
+            ) {
+                Text("+", fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.White, fontSize = 20.sp)
             }
         }
     }

@@ -7,12 +7,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.cletaeats.network.SessionManager
 import com.cletaeats.network.TokenManager
 import com.cletaeats.ui.auth.LoginScreen
 import com.cletaeats.ui.auth.RegisterScreen
@@ -20,6 +20,7 @@ import com.cletaeats.ui.screens.AdminDashboardScreen
 import com.cletaeats.ui.screens.ClienteHomeScreen
 import com.cletaeats.ui.screens.RepartidorHomeScreen
 import com.cletaeats.ui.theme.CletaEatsTheme
+import com.cletaeats.utils.LocalCacheManager
 import com.cletaeats.utils.connectivityState
 import com.cletaeats.utils.ConnectionState
 import com.cletaeats.ui.components.NoInternetScreen
@@ -30,6 +31,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // Inicializar managers persistentes (necesitan Context)
+        SessionManager.init(this)
+        LocalCacheManager.init(this)
+
         setContent {
             CletaEatsTheme {
                 val connectionState by connectivityState()
@@ -38,15 +43,16 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    if (connectionState is ConnectionState.Unavailable) {
+                    // Restaurar sesión: si hay token guardado, ir directo a home
+                    var currentScreen by remember {
+                        mutableStateOf(if (SessionManager.isLoggedIn) "home" else "login")
+                    }
+
+                    if (connectionState is ConnectionState.Unavailable && !SessionManager.isLoggedIn) {
                         NoInternetScreen()
                     } else {
-                        // Navegación centralizada de la aplicación
-                        var currentScreen by remember {
-                            mutableStateOf(if (TokenManager.token == null) "login" else "home")
-                        }
 
-                        val currentRole = TokenManager.rol ?: "cliente"
+                        val currentRole = SessionManager.rol ?: "cliente"
 
                         when (currentScreen) {
                             "login" -> {
