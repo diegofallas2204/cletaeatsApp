@@ -7,19 +7,30 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Coffee
+import androidx.compose.material.icons.filled.Fastfood
+import androidx.compose.material.icons.filled.Icecream
+import androidx.compose.material.icons.filled.LocalDining
+import androidx.compose.material.icons.filled.LocalDrink
+import androidx.compose.material.icons.filled.LocalPizza
+import androidx.compose.material.icons.filled.RamenDining
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.SetMeal
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cletaeats.network.RestauranteItem
 import com.cletaeats.ui.components.CategoryItem
 import com.cletaeats.ui.components.RestaurantGridItem
 import com.cletaeats.ui.theme.Cream
-import com.cletaeats.ui.theme.CreamDark
 
 @Composable
 fun ClienteInicioTab(
@@ -30,58 +41,176 @@ fun ClienteInicioTab(
     onCategorySelect: (String?) -> Unit,
     onRestaurantSelect: (RestauranteItem) -> Unit
 ) {
-    val categorias = listOf(
-        "Pizza" to "🍕", "Burger" to "🍔", "Pasta" to "🍝",
-        "Ensalada" to "🥗", "Sushi" to "🍣", "Café" to "☕",
-        "Postres" to "🍰", "Tacos" to "🌮", "Pollo" to "🍗",
-        "China" to "🥡", "Mariscos" to "🍤", "Bebidas" to "🥤"
+
+    val categorias: List<Pair<String, ImageVector>> = listOf(
+
+        "Pizza" to Icons.Default.LocalPizza,
+
+        "Burger" to Icons.Default.Fastfood,
+
+        "Pasta" to Icons.Default.RamenDining,
+
+        "Ensalada" to Icons.Default.LocalDining,
+
+        "Sushi" to Icons.Default.SetMeal,
+
+        "Café" to Icons.Default.Coffee,
+
+        "Postres" to Icons.Default.Icecream,
+
+        "Tacos" to Icons.Default.Fastfood,
+
+        "Pollo" to Icons.Default.SetMeal,
+
+        "China" to Icons.Default.RamenDining,
+
+        "Mariscos" to Icons.Default.SetMeal,
+
+        "Bebidas" to Icons.Default.LocalDrink
     )
 
-    Column(Modifier.fillMaxSize().background(Cream)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Cream)
+    ) {
+
         OutlinedTextField(
             value = searchQuery,
+
             onValueChange = onSearchQueryChange,
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            placeholder = { Text("¿Qué se te antoja hoy?") },
-            leadingIcon = { Icon(Icons.Default.Search, null) },
+
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+
+            placeholder = {
+                Text("¿Qué se te antoja hoy?")
+            },
+
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Buscar"
+                )
+            },
+
             shape = RoundedCornerShape(12.dp),
+
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = Color.White,
                 unfocusedContainerColor = Color.White
             )
         )
 
-        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+
             item {
-                Text("Categorías", Modifier.padding(horizontal = 16.dp), fontWeight = FontWeight.Bold)
-                LazyRow(Modifier.padding(vertical = 8.dp, horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                Text(
+                    text = "Categorías",
+
+                    modifier = Modifier.padding(horizontal = 16.dp),
+
+                    fontWeight = FontWeight.Bold,
+
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                LazyRow(
+                    modifier = Modifier.padding(
+                        vertical = 8.dp,
+                        horizontal = 16.dp
+                    ),
+
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+
                     items(categorias) { (nombre, icono) ->
-                        CategoryItem(nombre, icono, selectedCategory == nombre) {
-                            onCategorySelect(if (selectedCategory == nombre) null else nombre)
+
+                        CategoryItem(
+                            name = nombre,
+                            icon = icono,
+                            isSelected = selectedCategory == nombre
+                        ) {
+
+                            onCategorySelect(
+                                if (selectedCategory == nombre) {
+                                    null
+                                } else {
+                                    nombre
+                                }
+                            )
                         }
                     }
                 }
             }
 
             item {
+
                 val filtered = restaurantes.filter {
-                    (selectedCategory == null || it.tipoComida?.contains(selectedCategory, true) == true) &&
-                            it.nombre.contains(searchQuery, true)
+
+                    (selectedCategory == null ||
+                            it.tipoComida?.contains(
+                                selectedCategory,
+                                ignoreCase = true
+                            ) == true)
+
+                            &&
+
+                            it.nombre.contains(
+                                searchQuery,
+                                ignoreCase = true
+                            )
                 }
-                Column(Modifier.padding(horizontal = 16.dp)) {
+
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                ) {
+
                     filtered.chunked(2).forEach { fila ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), Arrangement.spacedBy(12.dp)) {
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+
                             fila.forEach { rest ->
-                                RestaurantGridItem(rest, Modifier.weight(1f)) {
+
+                                RestaurantGridItem(
+                                    rest = rest,
+
+                                    modifier = Modifier.weight(1f)
+                                ) {
+
                                     onRestaurantSelect(rest)
                                 }
                             }
-                            if (fila.size == 1) Spacer(Modifier.weight(1f))
+
+                            if (fila.size == 1) {
+
+                                Spacer(
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                         }
                     }
                 }
             }
-            item { Spacer(Modifier.height(80.dp)) }
+
+            item {
+
+                Spacer(
+                    modifier = Modifier.height(80.dp)
+                )
+            }
         }
     }
 }
