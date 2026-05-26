@@ -13,11 +13,12 @@ class CletaSQLiteHelper(context: Context) :
         context,
         "cletaeats.db",
         null,
-        2
+        3
     ) {
 
     companion object {
         private const val TABLE_RESTAURANTES = "restaurantes"
+        private const val TABLE_COMBOS = "combos"
         private const val TABLE_PEDIDOS = "pedidos"
         private const val TABLE_TARJETAS = "tarjetas"
     }
@@ -31,6 +32,17 @@ class CletaSQLiteHelper(context: Context) :
                 cedula_juridica TEXT,
                 direccion TEXT,
                 tipo_comida TEXT
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE $TABLE_COMBOS (
+                id INTEGER PRIMARY KEY,
+                restauranteId INTEGER,
+                numeroCombo INTEGER,
+                nombre TEXT,
+                precio REAL
             )
             """.trimIndent()
         )
@@ -65,6 +77,7 @@ class CletaSQLiteHelper(context: Context) :
         newVersion: Int
     ) {
         db.execSQL("DROP TABLE IF EXISTS $TABLE_RESTAURANTES")
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_COMBOS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_PEDIDOS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_TARJETAS")
         onCreate(db)
@@ -93,20 +106,68 @@ class CletaSQLiteHelper(context: Context) :
 
     fun obtenerRestaurantes(): List<RestauranteItem> {
         val lista = mutableListOf<RestauranteItem>()
-        val db = readableDatabase
-        val cursor = db.rawQuery("SELECT * FROM $TABLE_RESTAURANTES", null)
-        while (cursor.moveToNext()) {
-            lista.add(
-                RestauranteItem(
-                    id = cursor.getInt(0),
-                    nombre = cursor.getString(1),
-                    cedulaJuridica = cursor.getString(2),
-                    direccion = cursor.getString(3),
-                    tipoComida = cursor.getString(4)
+        try {
+            val db = readableDatabase
+            val cursor = db.rawQuery("SELECT * FROM $TABLE_RESTAURANTES", null)
+            while (cursor.moveToNext()) {
+                lista.add(
+                    RestauranteItem(
+                        id = cursor.getInt(0),
+                        nombre = cursor.getString(1),
+                        cedulaJuridica = cursor.getString(2),
+                        direccion = cursor.getString(3),
+                        tipoComida = cursor.getString(4)
+                    )
                 )
-            )
+            }
+            cursor.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        cursor.close()
+        return lista
+    }
+
+    fun guardarCombos(restauranteId: Int, lista: List<com.cletaeats.network.ComboItem>) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.delete(TABLE_COMBOS, "restauranteId = ?", arrayOf(restauranteId.toString()))
+            lista.forEach { combo ->
+                val values = ContentValues().apply {
+                    put("id", combo.id)
+                    put("restauranteId", restauranteId)
+                    put("numeroCombo", combo.numeroCombo)
+                    put("nombre", combo.nombre)
+                    put("precio", combo.precio)
+                }
+                db.insert(TABLE_COMBOS, null, values)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    fun obtenerCombos(restauranteId: Int): List<com.cletaeats.network.ComboItem> {
+        val lista = mutableListOf<com.cletaeats.network.ComboItem>()
+        try {
+            val db = readableDatabase
+            val cursor = db.rawQuery("SELECT * FROM $TABLE_COMBOS WHERE restauranteId = ?", arrayOf(restauranteId.toString()))
+            while (cursor.moveToNext()) {
+                lista.add(
+                    com.cletaeats.network.ComboItem(
+                        id = cursor.getInt(0),
+                        restauranteId = cursor.getInt(1),
+                        numeroCombo = cursor.getInt(2),
+                        nombre = cursor.getString(3),
+                        precio = cursor.getDouble(4)
+                    )
+                )
+            }
+            cursor.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         return lista
     }
 
@@ -134,21 +195,25 @@ class CletaSQLiteHelper(context: Context) :
 
     fun obtenerPedidos(): List<PedidoItem> {
         val lista = mutableListOf<PedidoItem>()
-        val db = readableDatabase
-        val cursor = db.rawQuery("SELECT * FROM $TABLE_PEDIDOS", null)
-        while (cursor.moveToNext()) {
-            lista.add(
-                PedidoItem(
-                    id = cursor.getInt(0),
-                    restauranteNombre = cursor.getString(1),
-                    total = cursor.getDouble(2),
-                    estado = cursor.getString(3),
-                    fechaPedido = cursor.getString(4),
-                    notas = cursor.getString(5)
+        try {
+            val db = readableDatabase
+            val cursor = db.rawQuery("SELECT * FROM $TABLE_PEDIDOS", null)
+            while (cursor.moveToNext()) {
+                lista.add(
+                    PedidoItem(
+                        id = cursor.getInt(0),
+                        restauranteNombre = cursor.getString(1),
+                        total = cursor.getDouble(2),
+                        estado = cursor.getString(3),
+                        fechaPedido = cursor.getString(4),
+                        notas = cursor.getString(5)
+                    )
                 )
-            )
+            }
+            cursor.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        cursor.close()
         return lista
     }
 
@@ -175,24 +240,33 @@ class CletaSQLiteHelper(context: Context) :
 
     fun obtenerTarjetas(): List<MetodoPago> {
         val lista = mutableListOf<MetodoPago>()
-        val db = readableDatabase
-        val cursor = db.rawQuery("SELECT * FROM $TABLE_TARJETAS", null)
-        while (cursor.moveToNext()) {
-            val idVal = cursor.getInt(0)
-            val id = if (idVal == 0) null else idVal
-            val clientIdVal = cursor.getInt(1)
-            val clientId = if (clientIdVal == 0) null else clientIdVal
-            lista.add(
-                MetodoPago(
-                    id = id,
-                    clienteId = clientId,
-                    numeroTarjeta = cursor.getString(2),
-                    fechaVencimiento = cursor.getString(3),
-                    cvv = cursor.getString(4)
+        try {
+            val db = readableDatabase
+            val cursor = db.rawQuery("SELECT * FROM $TABLE_TARJETAS", null)
+            while (cursor.moveToNext()) {
+                val idVal = cursor.getInt(0)
+                val id = if (idVal == 0) null else idVal
+                val clientIdVal = cursor.getInt(1)
+                val clientId = if (clientIdVal == 0) null else clientIdVal
+                lista.add(
+                    MetodoPago(
+                        id = id,
+                        clienteId = clientId,
+                        numeroTarjeta = cursor.getString(2),
+                        fechaVencimiento = cursor.getString(3),
+                        cvv = cursor.getString(4)
+                    )
                 )
-            )
+            }
+            cursor.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        cursor.close()
         return lista
+    }
+
+    fun eliminarTarjeta(id: Int) {
+        val db = writableDatabase
+        db.delete(TABLE_TARJETAS, "id = ?", arrayOf(id.toString()))
     }
 }

@@ -18,6 +18,7 @@ import com.cletaeats.ui.tracking.*
 import com.cletaeats.utils.LocalCacheManager
 import com.cletaeats.utils.OrderUtils
 import com.cletaeats.utils.currentConnectivityState
+import com.cletaeats.utils.connectivityState
 import com.cletaeats.utils.ConnectionState
 import kotlinx.coroutines.launch
 
@@ -50,6 +51,8 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
     var orderToCancel by remember { mutableStateOf<PedidoItem?>(null) }
     var latestCreatedOrder by remember { mutableStateOf<PedidoItem?>(null) }
 
+    val connectionState by connectivityState()
+
     fun refreshData() {
         coroutineScope.launch {
             try {
@@ -70,19 +73,27 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
     }
 
     // ── Carga inicial: restaurantes con estrategia cache-first ─────────────
-    LaunchedEffect(Unit) {
+    LaunchedEffect(connectionState) {
         val token = TokenManager.token ?: return@LaunchedEffect
         val authHeader = "Bearer $token"
-        val isOnline = context.currentConnectivityState is ConnectionState.Available
+        val isOnline = connectionState is ConnectionState.Available
 
         // 1. Mostrar caché inmediatamente si existe (evita pantalla de carga)
-        val cachedRestaurantes = LocalCacheManager.getRestaurantes()
-        if (cachedRestaurantes != null) {
+        val cachedRestaurantes = sqliteHelper.obtenerRestaurantes()
+        if (cachedRestaurantes.isNotEmpty()) {
             restaurantes = cachedRestaurantes
             isLoading = false
-            Log.d("CletaEats", "Restaurantes cargados desde caché (${cachedRestaurantes.size})")
+            Log.d("CletaEats", "Restaurantes cargados desde caché SQLite (${cachedRestaurantes.size})")
         } else {
-            isLoading = true
+            // Fallback to old cache manager
+            val oldCache = LocalCacheManager.getRestaurantesOffline()
+            if (!oldCache.isNullOrEmpty()) {
+                restaurantes = oldCache
+                sqliteHelper.guardarRestaurantes(oldCache)
+                isLoading = false
+            } else {
+                isLoading = true
+            }
         }
 
         // También restaurar perfil desde caché
@@ -100,7 +111,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                 if (restResp.success) {
                     val nuevos = restResp.data ?: emptyList()
                     restaurantes = nuevos
-                    LocalCacheManager.saveRestaurantes(nuevos)
+                    sqliteHelper.guardarRestaurantes(nuevos)
                     Log.d("CletaEats", "Restaurantes actualizados desde API")
                 }
                 val tarjetasResp = CletaApi.retrofitService.getTarjetas(authHeader)
@@ -126,7 +137,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error carga inicial desde API: ${e.message}")
                 if (restaurantes.isEmpty()) {
-                    restaurantes = LocalCacheManager.getRestaurantesOffline() ?: emptyList()
+                    restaurantes = sqliteHelper.obtenerRestaurantes()
                 }
                 if (userProfile == null) {
                     userProfile = LocalCacheManager.getUserProfileOffline()
@@ -137,7 +148,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
             }
         } else {
             if (restaurantes.isEmpty()) {
-                restaurantes = LocalCacheManager.getRestaurantesOffline() ?: emptyList()
+                restaurantes = sqliteHelper.obtenerRestaurantes()
                 Log.w("CletaEats", "Sin conexión, usando caché offline de restaurantes")
             }
             if (tarjetasGuardadas.isEmpty()) {
@@ -149,14 +160,14 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
     }
 
     // ── Combos por restaurante: también cache-first ────────────────────────
-    LaunchedEffect(selectedRestaurant) {
+    LaunchedEffect(selectedRestaurant, connectionState) {
         if (selectedRestaurant != null) {
             val restauranteId = selectedRestaurant!!.id
-            val isOnline = context.currentConnectivityState is ConnectionState.Available
+            val isOnline = connectionState is ConnectionState.Available
 
             // 1. Mostrar caché si existe
-            val cachedCombos = LocalCacheManager.getCombos(restauranteId)
-            if (cachedCombos != null) {
+            val cachedCombos = sqliteHelper.obtenerCombos(restauranteId)
+            if (cachedCombos.isNotEmpty()) {
                 menuCombos = cachedCombos
                 cartItems = emptyList()
                 isMenuLoading = false
@@ -177,7 +188,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         if (response.success) {
                             val nuevosCombos = response.data ?: emptyList()
                             menuCombos = nuevosCombos
-                            LocalCacheManager.saveCombos(restauranteId, nuevosCombos) // guardar
+                            sqliteHelper.guardarCombos(restauranteId, nuevosCombos) // guardar
                             Log.d("CletaEats", "Combos de restaurante $restauranteId actualizados")
                         }
                     }
@@ -185,12 +196,12 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                     Log.e("CletaEats", "Error combos desde API: ${e.message}")
                     // Si falla y no había caché válido, intentar caché vencido
                     if (menuCombos.isEmpty()) {
-                        menuCombos = LocalCacheManager.getCombosOffline(restauranteId) ?: emptyList()
+                        menuCombos = sqliteHelper.obtenerCombos(restauranteId)
                     }
                 }
             } else if (menuCombos.isEmpty()) {
                 // Sin conexión: intentar con caché vencido
-                menuCombos = LocalCacheManager.getCombosOffline(restauranteId) ?: emptyList()
+                menuCombos = sqliteHelper.obtenerCombos(restauranteId)
                 Log.w("CletaEats", "Sin conexión, usando caché offline de combos")
             }
 
@@ -249,7 +260,19 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         ActiveTab.PERFIL -> ClientePerfilTab(
                             tarjetas = tarjetasGuardadas,
                             userProfile = userProfile,
-                            onAddCardClick = { showPaymentDialog = true }
+                            onAddCardClick = { showPaymentDialog = true },
+                            onDeleteCard = { id ->
+                                coroutineScope.launch {
+                                    try {
+                                        val t = TokenManager.token ?: return@launch
+                                        val resp = CletaApi.retrofitService.deleteTarjeta("Bearer $t", id)
+                                        if (resp.success) {
+                                            tarjetasGuardadas = tarjetasGuardadas.filter { it.id != id }
+                                            sqliteHelper.eliminarTarjeta(id)
+                                        }
+                                    } catch (e: Exception) { Log.e("CletaEats", "Error borrando tarjeta: ${e.message}") }
+                                }
+                            }
                         )
                     }
                 }
@@ -275,7 +298,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         )
     }
 
-    if (showPaymentDialog && cartItems.isNotEmpty() && selectedRestaurant != null) {
+    if (showPaymentDialog && (cartItems.isNotEmpty() && selectedRestaurant != null && activeTab == ActiveTab.INICIO)) {
         PaymentDialog(
             isSubmitting = isSubmittingOrder, tarjetas = tarjetasGuardadas,
             onDismiss = { showPaymentDialog = false },
@@ -287,8 +310,16 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         if (resp.success && resp.data != null) {
                             tarjetasGuardadas = tarjetasGuardadas + resp.data
                             sqliteHelper.guardarTarjetas(tarjetasGuardadas)
+                        } else {
+                            // Fallback
+                            tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
+                            sqliteHelper.guardarTarjetas(tarjetasGuardadas)
                         }
-                    } catch (e: Exception) { Log.e("CletaEats", "Error guardando tarjeta: ${e.message}") }
+                    } catch (e: Exception) {
+                        Log.e("CletaEats", "Error guardando tarjeta: ${e.message}")
+                        tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
+                        sqliteHelper.guardarTarjetas(tarjetasGuardadas)
+                    }
                 }
             },
             onConfirm = { numeroTarjetaFinal ->
@@ -307,14 +338,31 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             refreshData()
                             showOrderTracking = true
                             cartItems = emptyList()
+                        } else {
+                            throw Exception("Fallback to local")
                         }
-                    } catch (e: Exception) { Log.e("CletaEats", "Error confirmación pedido: ${e.message}") } finally { isSubmittingOrder = false }
+                    } catch (e: Exception) {
+                        Log.e("CletaEats", "Error confirmación pedido: ${e.message}")
+                        val totalCost = cartItems.sumOf { (it.combo.precio + if (it.agrandado) 1500.0 else 0.0) * it.cantidad }
+                        val localOrder = PedidoItem(
+                            id = (1000..9999).random(),
+                            restauranteNombre = selectedRestaurant?.nombre ?: "Restaurante",
+                            total = totalCost + (totalCost * 0.13) + 1500.0,
+                            estado = "pendiente"
+                        )
+                        sqliteHelper.guardarPedidos(sqliteHelper.obtenerPedidos() + localOrder)
+                        latestCreatedOrder = localOrder
+                        showPaymentDialog = false
+                        refreshData()
+                        showOrderTracking = true
+                        cartItems = emptyList()
+                    } finally { isSubmittingOrder = false }
                 }
             }
         )
     }
 
-    if (showPaymentDialog && cartItems.isEmpty()) {
+    if (showPaymentDialog && (cartItems.isEmpty() || activeTab == ActiveTab.PERFIL)) {
         PaymentDialog(
             isSubmitting = false, tarjetas = tarjetasGuardadas,
             onDismiss = { showPaymentDialog = false },
@@ -327,8 +375,17 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             tarjetasGuardadas = tarjetasGuardadas + resp.data
                             sqliteHelper.guardarTarjetas(tarjetasGuardadas)
                             showPaymentDialog = false
+                        } else {
+                            tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
+                            sqliteHelper.guardarTarjetas(tarjetasGuardadas)
+                            showPaymentDialog = false
                         }
-                    } catch (e: Exception) { Log.e("CletaEats", "Error tarjeta perfil: ${e.message}") }
+                    } catch (e: Exception) {
+                        Log.e("CletaEats", "Error tarjeta perfil: ${e.message}")
+                        tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
+                        sqliteHelper.guardarTarjetas(tarjetasGuardadas)
+                        showPaymentDialog = false
+                    }
                 }
             },
             onConfirm = { showPaymentDialog = false }
