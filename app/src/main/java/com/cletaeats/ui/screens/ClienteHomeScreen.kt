@@ -44,6 +44,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
     var tarjetasGuardadas by remember { mutableStateOf<List<MetodoPago>>(emptyList()) }
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val sqliteHelper = remember { com.cletaeats.database.CletaSQLiteHelper(context) }
 
     var orderToTrack by remember { mutableStateOf<PedidoItem?>(null) }
     var orderToCancel by remember { mutableStateOf<PedidoItem?>(null) }
@@ -54,9 +55,16 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
             try {
                 val t = TokenManager.token ?: return@launch
                 val response = CletaApi.retrofitService.getClienteHistorial("Bearer $t")
-                if (response.success) historial = response.data ?: emptyList()
+                if (response.success) {
+                    val nuevosPedidos = response.data ?: emptyList()
+                    historial = nuevosPedidos
+                    sqliteHelper.guardarPedidos(nuevosPedidos)
+                } else {
+                    historial = sqliteHelper.obtenerPedidos()
+                }
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error cargando historial: ${e.message}")
+                historial = sqliteHelper.obtenerPedidos()
             }
         }
     }
@@ -96,7 +104,11 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                     Log.d("CletaEats", "Restaurantes actualizados desde API")
                 }
                 val tarjetasResp = CletaApi.retrofitService.getTarjetas(authHeader)
-                if (tarjetasResp.success) tarjetasGuardadas = tarjetasResp.data ?: emptyList()
+                if (tarjetasResp.success) {
+                    val nuevasTarjetas = tarjetasResp.data ?: emptyList()
+                    tarjetasGuardadas = nuevasTarjetas
+                    sqliteHelper.guardarTarjetas(nuevasTarjetas)
+                }
                 // Cargar perfil del usuario
                 try {
                     val perfilResp = CletaApi.retrofitService.getUserPerfil(authHeader)
@@ -119,10 +131,18 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                 if (userProfile == null) {
                     userProfile = LocalCacheManager.getUserProfileOffline()
                 }
+                if (tarjetasGuardadas.isEmpty()) {
+                    tarjetasGuardadas = sqliteHelper.obtenerTarjetas()
+                }
             }
-        } else if (restaurantes.isEmpty()) {
-            restaurantes = LocalCacheManager.getRestaurantesOffline() ?: emptyList()
-            Log.w("CletaEats", "Sin conexión, usando caché offline de restaurantes")
+        } else {
+            if (restaurantes.isEmpty()) {
+                restaurantes = LocalCacheManager.getRestaurantesOffline() ?: emptyList()
+                Log.w("CletaEats", "Sin conexión, usando caché offline de restaurantes")
+            }
+            if (tarjetasGuardadas.isEmpty()) {
+                tarjetasGuardadas = sqliteHelper.obtenerTarjetas()
+            }
         }
 
         isLoading = false
@@ -244,7 +264,11 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                 cartItems = cartItems.map { if (it.combo.id == changedItem.combo.id) changedItem else it }
             },
             onDeleteCartItem = { item ->
-                cartItems = cartItems.filter { it.combo.id != item.combo.id }
+                val newCart = cartItems.filter { it.combo.id != item.combo.id }
+                cartItems = newCart
+                if (newCart.isEmpty()) {
+                    showCartSummary = false
+                }
             },
             onDismiss = { showCartSummary = false },
             onConfirm = { showCartSummary = false; showPaymentDialog = true }
@@ -260,7 +284,10 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                     try {
                         val t = TokenManager.token ?: return@launch
                         val resp = CletaApi.retrofitService.guardarTarjeta("Bearer $t", nuevaTarjeta)
-                        if (resp.success && resp.data != null) tarjetasGuardadas = tarjetasGuardadas + resp.data
+                        if (resp.success && resp.data != null) {
+                            tarjetasGuardadas = tarjetasGuardadas + resp.data
+                            sqliteHelper.guardarTarjetas(tarjetasGuardadas)
+                        }
                     } catch (e: Exception) { Log.e("CletaEats", "Error guardando tarjeta: ${e.message}") }
                 }
             },
@@ -298,6 +325,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         val resp = CletaApi.retrofitService.guardarTarjeta("Bearer $t", nuevaTarjeta)
                         if (resp.success && resp.data != null) {
                             tarjetasGuardadas = tarjetasGuardadas + resp.data
+                            sqliteHelper.guardarTarjetas(tarjetasGuardadas)
                             showPaymentDialog = false
                         }
                     } catch (e: Exception) { Log.e("CletaEats", "Error tarjeta perfil: ${e.message}") }

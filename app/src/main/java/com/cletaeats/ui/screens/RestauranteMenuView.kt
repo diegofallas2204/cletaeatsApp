@@ -32,7 +32,6 @@ fun RestaurantMenuView(
     onBack: () -> Unit,
     onProceedToCart: () -> Unit
 ) {
-    var addedCombo by remember { mutableStateOf<ComboItem?>(null) }
 
     Column(modifier = Modifier.fillMaxSize().background(Cream)) {
         Surface(modifier = Modifier.fillMaxWidth(), color = BrownDark, shadowElevation = 8.dp) {
@@ -59,7 +58,6 @@ fun RestaurantMenuView(
                             val newCart = cart.toMutableMap()
                             newCart[combo] = currentQty + 1
                             onCartChange(newCart)
-                            addedCombo = combo
                         }
                     )
                 }
@@ -89,39 +87,4 @@ fun RestaurantMenuView(
         }
     }
 
-    if (addedCombo != null) {
-        Dialog(onDismissRequest = { addedCombo = null }) {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = WhiteCard),
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("¡Agregado al carrito!", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = BrownDark)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(addedCombo!!.nombre, style = MaterialTheme.typography.bodyLarge)
-                    Text("₡${addedCombo!!.precio}", fontWeight = FontWeight.ExtraBold, color = OrangeSoft)
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(
-                        onClick = { addedCombo = null },
-                        colors = ButtonDefaults.buttonColors(containerColor = CreamDark, contentColor = BrownDark),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Seguir comprando")
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = {
-                            addedCombo = null
-                            onProceedToCart()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = BrownDark, contentColor = Color.White),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Ver el carrito")
-                    }
-                }
-            }
-        }
-    }
 }
