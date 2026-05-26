@@ -20,7 +20,7 @@ import com.cletaeats.network.TokenManager
 import com.cletaeats.ui.theme.*
 
 @Composable
-fun RepartidorTabPerfil(
+fun RepartidorPerfilTab(
     pedidos: List<PedidoItem>,
     isOnline: Boolean,
     onOnlineToggle: (Boolean) -> Unit

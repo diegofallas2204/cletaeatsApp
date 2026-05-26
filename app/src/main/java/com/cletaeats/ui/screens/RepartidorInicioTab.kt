@@ -1,16 +1,18 @@
 package com.cletaeats.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.LocalMall
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -20,14 +22,29 @@ import androidx.compose.ui.unit.sp
 import com.cletaeats.network.PedidoItem
 import com.cletaeats.ui.theme.*
 
+enum class OrderSortOption {
+    RECIENTES, PRECIO_MAYOR, PRECIO_MENOR
+}
+
 @Composable
-fun RepartidorTabDisponibles(
+fun RepartidorInicioTab(
     pedidos: List<PedidoItem>,
     isRefreshing: Boolean,
     onAcceptOrder: (PedidoItem) -> Unit,
     onRefresh: () -> Unit
 ) {
-    val disponibles = pedidos.filter { it.estado?.lowercase() == "pendiente" || it.estado?.lowercase() == "preparando" }
+    var sortOption by remember { mutableStateOf(OrderSortOption.RECIENTES) }
+
+    val disponibles = pedidos.filter { 
+        val est = it.estado?.lowercase() ?: ""
+        est == "pendiente" || est == "preparando" 
+    }
+
+    val sortedDisponibles = when (sortOption) {
+        OrderSortOption.RECIENTES -> disponibles.sortedByDescending { it.id }
+        OrderSortOption.PRECIO_MAYOR -> disponibles.sortedByDescending { it.total ?: 0.0 }
+        OrderSortOption.PRECIO_MENOR -> disponibles.sortedBy { it.total ?: 0.0 }
+    }
 
     Column(
         modifier = Modifier
@@ -53,7 +70,42 @@ fun RepartidorTabDisponibles(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        if (disponibles.isEmpty()) {
+        // Filtros / Ordenamiento
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OrderSortOption.entries.forEach { option ->
+                ElevatedFilterChip(
+                    selected = sortOption == option,
+                    onClick = { sortOption = option },
+                    label = {
+                        Text(
+                            when (option) {
+                                OrderSortOption.RECIENTES -> "Más Recientes"
+                                OrderSortOption.PRECIO_MAYOR -> "Precio: Mayor a Menor"
+                                OrderSortOption.PRECIO_MENOR -> "Precio: Menor a Mayor"
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = OrangeSoft,
+                        selectedLabelColor = Color.White,
+                        containerColor = WhiteCard,
+                        labelColor = BrownDark
+                    )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (sortedDisponibles.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -89,7 +141,7 @@ fun RepartidorTabDisponibles(
                     .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(disponibles) { pedido ->
+                items(sortedDisponibles) { pedido ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -145,6 +197,7 @@ fun RepartidorTabDisponibles(
                         }
                     }
                 }
+                item { Spacer(Modifier.height(80.dp)) }
             }
         }
     }
