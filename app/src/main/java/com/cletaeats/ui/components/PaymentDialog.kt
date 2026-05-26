@@ -3,9 +3,12 @@ package com.cletaeats.ui.components
 import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
@@ -16,59 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.cletaeats.network.ComboItem
 import com.cletaeats.network.MetodoPago
 import com.cletaeats.ui.theme.*
-
-@Composable
-fun CheckoutDialog(
-    combo: ComboItem,
-    notes: String,
-    isAgrandado: Boolean,
-    onNotesChange: (String) -> Unit,
-    onAgrandadoChange: (Boolean) -> Unit,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Detalles del Pedido", fontWeight = FontWeight.Bold, color = BrownDark) },
-        text = {
-            Column {
-                Text(text = combo.nombre, fontWeight = FontWeight.Bold)
-                Text(
-                    text = "₡${if (isAgrandado) combo.precio + 1500 else combo.precio}",
-                    color = OrangeSoft, fontWeight = FontWeight.ExtraBold
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().clickable { onAgrandadoChange(!isAgrandado) }.padding(vertical = 8.dp)
-                ) {
-                    Checkbox(checked = isAgrandado, onCheckedChange = onAgrandadoChange, colors = CheckboxDefaults.colors(checkedColor = BrownDark))
-                    Text("Agrandar combo (+₡1500)", fontWeight = FontWeight.Bold)
-                }
-                OutlinedTextField(
-                    value = notes, onValueChange = onNotesChange,
-                    label = { Text("Notas Extra") }, modifier = Modifier.fillMaxWidth(), minLines = 3
-                )
-            }
-        },
-        confirmButton = {
-            Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = BrownDark, contentColor = Color.White)) {
-                Icon(
-                    imageVector = Icons.Default.ArrowForward,
-                    contentDescription = "Continuar",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar", color = BrownMid) }
-        },
-        containerColor = Cream
-    )
-}
 
 @Composable
 fun PaymentDialog(
@@ -78,7 +30,6 @@ fun PaymentDialog(
     onSaveCard: (MetodoPago) -> Unit,
     onConfirm: (String) -> Unit
 ) {
-    // ESTADO CRÍTICO: Forzamos la selección de la primera tarjeta si existe
     var selectedValue by remember(tarjetas) {
         mutableStateOf(tarjetas.firstOrNull()?.numeroTarjeta ?: "")
     }
@@ -88,11 +39,13 @@ fun PaymentDialog(
     var exp by remember { mutableStateOf("") }
     var cvv by remember { mutableStateOf("") }
 
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     // VALIDATION RULES
     val isNumValid = num.length in 15..16
     val isCvvValid = cvv.length in 3..4
 
-    // Expiration date validity (not expired)
     val calendar = java.util.Calendar.getInstance()
     val currentYear2Digit = calendar.get(java.util.Calendar.YEAR) % 100
     val currentMonth = calendar.get(java.util.Calendar.MONTH) + 1
@@ -135,7 +88,9 @@ fun PaymentDialog(
                             if (filtered.length <= 16) num = filtered
                         },
                         label = { Text("Número de Tarjeta") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
                         isError = num.isNotEmpty() && !isNumValid,
                         supportingText = if (num.isNotEmpty() && !isNumValid) { { Text("15 o 16 dígitos", color = MaterialTheme.colorScheme.error) } } else null,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
@@ -153,7 +108,9 @@ fun PaymentDialog(
                             }
                         },
                         label = { Text("Expiración (MM/AA)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
                         isError = exp.isNotEmpty() && !isExpValid,
                         supportingText = if (exp.isNotEmpty()) {
                             if (!isExpFormatValid) {
@@ -171,7 +128,12 @@ fun PaymentDialog(
                             if (filtered.length <= 4) cvv = filtered
                         },
                         label = { Text("CVV") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = {
+                            keyboardController?.hide()
+                            focusManager.clearFocus()
+                        }),
                         isError = cvv.isNotEmpty() && !isCvvValid,
                         supportingText = if (cvv.isNotEmpty() && !isCvvValid) { { Text("3 o 4 dígitos", color = MaterialTheme.colorScheme.error) } } else null,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)

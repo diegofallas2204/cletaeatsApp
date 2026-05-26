@@ -3,6 +3,7 @@ package com.cletaeats.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 
 private val LightColorScheme = lightColorScheme(
     primary = BrownDark,
@@ -10,8 +11,8 @@ private val LightColorScheme = lightColorScheme(
     tertiary = OrangeSoft,
     background = Cream,
     surface = WhiteCard,
-    onPrimary = androidx.compose.ui.graphics.Color.White,
-    onSecondary = androidx.compose.ui.graphics.Color.White,
+    onPrimary = Color.White,
+    onSecondary = Color.White,
     onTertiary = BrownDark,
     onBackground = TextDark,
     onSurface = TextDark
@@ -24,4 +25,14 @@ fun CletaEatsTheme(content: @Composable () -> Unit) {
         typography = Typography,
         content = content
     )
+}
+
+// Aliasing for compatibility with existing code
+@Composable
+fun PrototipoCETheme(
+    darkTheme: Boolean = false,
+    dynamicColor: Boolean = false,
+    content: @Composable () -> Unit
+) {
+    CletaEatsTheme(content = content)
 }

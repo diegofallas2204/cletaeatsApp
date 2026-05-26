@@ -1,7 +1,10 @@
 package com.cletaeats.ui.auth
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Login
 import androidx.compose.material3.*
@@ -9,30 +12,35 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cletaeats.ui.theme.*
 import com.cletaeats.network.CletaApi
 import com.cletaeats.network.LoginRequest
-import com.cletaeats.network.TokenManager
+import com.cletaeats.network.SessionManager
 import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {}) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var rol by remember { mutableStateOf("cliente") } // Nuevo selector de roles
     var showError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("Credenciales inválidas. Inténtalo de nuevo.") }
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
 
-    // Usamos una estructura pura de Compose
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(32.dp),
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -42,20 +50,32 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {
                 color = BrownDark,
                 fontSize = 32.sp
             ),
-            modifier = Modifier.padding(bottom = 32.dp)
+            modifier = Modifier.padding(bottom = 24.dp)
         )
+
+        // Selector de roles (Cliente vs Repartidor)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            RoleCard("Cliente", rol == "cliente", Modifier.weight(1f)) { rol = "cliente" }
+            RoleCard("Repartidor", rol == "repartidor", Modifier.weight(1f)) { rol = "repartidor" }
+        }
 
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = "Usuario",
                 style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
+                modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
             )
             OutlinedTextField(
                 value = username,
-                onValueChange = { username = it },
-                placeholder = { Text("Tu usuario admin") },
+                onValueChange = { input -> username = input.replace("\n", "").replace("\r", "") },
+                placeholder = { Text("Tu usuario") },
                 modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
                 shape = RoundedCornerShape(14.dp),
                 enabled = !isLoading,
                 colors = OutlinedTextFieldDefaults.colors(
@@ -67,20 +87,26 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {
             )
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = "Contraseña",
                 style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
+                modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
             )
             OutlinedTextField(
                 value = password,
-                onValueChange = { password = it },
+                onValueChange = { input -> password = input.replace("\n", "").replace("\r", "") },
                 placeholder = { Text("••••••••") },
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
+                    keyboardController?.hide()
+                    focusManager.clearFocus()
+                }),
                 shape = RoundedCornerShape(14.dp),
                 enabled = !isLoading,
                 colors = OutlinedTextFieldDefaults.colors(
@@ -92,7 +118,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {
             )
         }
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         Button(
             onClick = {
@@ -104,11 +130,13 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {
                             val response = CletaApi.retrofitService.login(LoginRequest(username, password))
                             if (response.success) {
                                 val token = response.token ?: response.data?.token
-                                val rol = response.rol ?: response.data?.rol
                                 if (token != null) {
-                                    TokenManager.token = token
-                                    TokenManager.username = username
-                                    TokenManager.rol = rol ?: "cliente" // Default to cliente if null
+                                    // Guardar sesión de forma persistente en disco
+                                    SessionManager.saveSession(
+                                        token    = token,
+                                        username = username,
+                                        rol      = rol
+                                    )
                                     onLoginSuccess()
                                 } else {
                                     errorMessage = "Error: No se recibió token."
@@ -130,9 +158,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {
                     showError = true
                 }
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp),
+            modifier = Modifier.fillMaxWidth().height(55.dp),
             shape = RoundedCornerShape(16.dp),
             enabled = !isLoading,
             colors = ButtonDefaults.buttonColors(containerColor = BrownDark)
@@ -145,13 +171,15 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {
                         imageVector = Icons.Default.Login,
                         contentDescription = "Login",
                         tint = Color.White,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(24.dp)
                     )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Ingresar", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         TextButton(onClick = onNavigateToRegister) {
             Text(
                 text = "¿Sin cuenta? Regístrate acá",
@@ -165,8 +193,24 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {
                 text = errorMessage,
                 color = RedAccent,
                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.padding(top = 16.dp)
+                modifier = Modifier.padding(top = 12.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun RoleCard(label: String, isSelected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    OutlinedCard(
+        onClick = onClick,
+        modifier = modifier,
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = if (isSelected) BrownDark else Color.Transparent
+        ),
+        border = BorderStroke(1.dp, BrownDark)
+    ) {
+        Box(Modifier.fillMaxWidth().padding(10.dp), Alignment.Center) {
+            Text(label, color = if (isSelected) Cream else BrownDark, fontWeight = FontWeight.Bold)
         }
     }
 }

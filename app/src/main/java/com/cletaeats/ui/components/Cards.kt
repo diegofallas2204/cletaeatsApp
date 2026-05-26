@@ -3,12 +3,16 @@ package com.cletaeats.ui.components
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cletaeats.network.ComboItem
@@ -16,86 +20,396 @@ import com.cletaeats.network.PedidoItem
 import com.cletaeats.network.RestauranteItem
 import com.cletaeats.ui.theme.*
 
-fun getCategoryEmoji(tipoComida: String?): String {
-    if (tipoComida == null) return "🏪"
+fun getCategoryIcon(tipoComida: String?): ImageVector {
+
+    if (tipoComida == null) return Icons.Default.Fastfood
+
     val lower = tipoComida.lowercase()
-    if (lower.contains("pizza")) return "🍕"
-    if (lower.contains("burger") || lower.contains("hamburguesa")) return "🍔"
-    if (lower.contains("pasta") || lower.contains("tallarines") || lower.contains("italiana")) return "🍝"
-    if (lower.contains("ensalada") || lower.contains("saludable")) return "🥗"
-    if (lower.contains("sushi") || lower.contains("japonesa")) return "🍣"
-    if (lower.contains("café") || lower.contains("cafe") || lower.contains("coffee") || lower.contains("coffe")) return "☕"
-    if (lower.contains("postre") || lower.contains("repostería") || lower.contains("reposteria") || lower.contains("cake") || lower.contains("helado") || lower.contains("dulce")) return "🍰"
-    if (lower.contains("taco") || lower.contains("mexicana")) return "🌮"
-    if (lower.contains("pollo") || lower.contains("chicken")) return "🍗"
-    if (lower.contains("china") || lower.contains("asiática") || lower.contains("asiatica") || lower.contains("cantones")) return "🥡"
-    if (lower.contains("marisco") || lower.contains("pescado") || lower.contains("ceviche")) return "🍤"
-    if (lower.contains("bebida") || lower.contains("refresco") || lower.contains("jugo") || lower.contains("batido")) return "🥤"
-    return "🏪"
-}
 
-@Composable
-fun RestaurantGridItem(rest: RestauranteItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Card(
-        modifier = modifier.aspectRatio(1f).clickable { onClick() },
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = WhiteCard),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(getCategoryEmoji(rest.tipoComida), fontSize = 22.sp)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(rest.nombre, fontWeight = FontWeight.ExtraBold, color = BrownDark, maxLines = 1)
-            Text(rest.direccion, style = MaterialTheme.typography.bodySmall, color = TextMid, maxLines = 2)
-        }
+    return when {
+
+        lower.contains("pizza") ->
+            Icons.Default.LocalPizza
+
+        lower.contains("burger") ||
+                lower.contains("hamburguesa") ->
+            Icons.Default.Fastfood
+
+        lower.contains("pasta") ||
+                lower.contains("tallarines") ||
+                lower.contains("italiana") ->
+            Icons.Default.RamenDining
+
+        lower.contains("ensalada") ||
+                lower.contains("saludable") ->
+            Icons.Default.LocalDining
+
+        lower.contains("sushi") ||
+                lower.contains("japonesa") ->
+            Icons.Default.SetMeal
+
+        lower.contains("café") ||
+                lower.contains("cafe") ||
+                lower.contains("coffee") ->
+            Icons.Default.Coffee
+
+        lower.contains("postre") ||
+                lower.contains("repostería") ||
+                lower.contains("reposteria") ||
+                lower.contains("cake") ||
+                lower.contains("helado") ||
+                lower.contains("dulce") ->
+            Icons.Default.Icecream
+
+        lower.contains("taco") ||
+                lower.contains("mexicana") ->
+            Icons.Default.Fastfood
+
+        lower.contains("pollo") ||
+                lower.contains("chicken") ->
+            Icons.Default.SetMeal
+
+        lower.contains("china") ||
+                lower.contains("asiática") ||
+                lower.contains("asiatica") ||
+                lower.contains("cantones") ->
+            Icons.Default.RamenDining
+
+        lower.contains("marisco") ||
+                lower.contains("pescado") ||
+                lower.contains("ceviche") ->
+            Icons.Default.SetMeal
+
+        lower.contains("bebida") ||
+                lower.contains("refresco") ||
+                lower.contains("jugo") ||
+                lower.contains("batido") ->
+            Icons.Default.LocalDrink
+
+        else ->
+            Icons.Default.Fastfood
     }
 }
 
 @Composable
-fun OrderCard(pedido: PedidoItem) {
+fun RestaurantGridItem(
+    rest: RestauranteItem,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = WhiteCard),
-        border = BorderStroke(1.dp, CreamDark)
+        modifier = modifier
+            .aspectRatio(1f)
+            .clickable { onClick() },
+
+        shape = RoundedCornerShape(24.dp),
+
+        colors = CardDefaults.cardColors(
+            containerColor = WhiteCard
+        ),
+
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 6.dp
+        )
     ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("📦", fontSize = 24.sp)
-            Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
-                Text("Pedido #${pedido.id}", fontWeight = FontWeight.Bold)
-                Text(pedido.restauranteNombre ?: "Restaurante", style = MaterialTheme.typography.bodySmall)
+
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxSize(),
+
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+
+            Column {
+
+                Icon(
+                    imageVector = getCategoryIcon(rest.tipoComida),
+                    contentDescription = rest.tipoComida,
+                    modifier = Modifier.size(28.dp),
+                    tint = BrownDark
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = rest.nombre,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = BrownDark,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = 14.sp,
+                    lineHeight = 16.sp
+                )
             }
-            Text("₡${pedido.total ?: 0.0}", fontWeight = FontWeight.Bold)
+
+            Text(
+                text = rest.direccion,
+                style = MaterialTheme.typography.bodySmall,
+                color = TextMid,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontSize = 12.sp
+            )
         }
     }
 }
 
 @Composable
-fun CategoryItem(name: String, icon: String, isSelected: Boolean, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.width(85.dp).aspectRatio(0.85f).clickable { onClick() },
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = if (isSelected) BrownDark else WhiteCard)
-    ) {
-        Column(Modifier.fillMaxSize(), Arrangement.Center, Alignment.CenterHorizontally) {
-            Text(icon, fontSize = 28.sp)
-            Text(name, color = if (isSelected) Color.White else TextDark, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-        }
-    }
-}
+fun OrderCard(
+    pedido: PedidoItem,
+    onTrackClick: () -> Unit = {},
+    onCancelClick: () -> Unit = {}
+) {
 
-@Composable
-fun ComboCard(combo: ComboItem, modifier: Modifier = Modifier) {
     Card(
-        modifier = modifier.fillMaxWidth().height(130.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onTrackClick() },
+
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = WhiteCard),
+
+        colors = CardDefaults.cardColors(
+            containerColor = WhiteCard
+        ),
+
         border = BorderStroke(1.dp, CreamDark)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text("Combo #${combo.numeroCombo}", color = BrownMid, style = MaterialTheme.typography.labelSmall)
-            Text(combo.nombre, fontWeight = FontWeight.Bold, maxLines = 2, modifier = Modifier.weight(1f))
-            Text("₡${combo.precio}", fontWeight = FontWeight.ExtraBold, color = OrangeSoft)
+
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+
+            Icon(
+                imageVector = Icons.Default.ShoppingCart,
+                contentDescription = "Pedido",
+                tint = BrownDark,
+                modifier = Modifier.size(28.dp)
+            )
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 16.dp)
+            ) {
+
+                Text(
+                    text = "Pedido #${pedido.id}",
+                    fontWeight = FontWeight.Bold,
+                    color = BrownDark
+                )
+
+                Text(
+                    text = pedido.restauranteNombre ?: "Restaurante",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMid
+                )
+
+                val rawStatus = pedido.estado ?: "pendiente"
+
+                val status = if (rawStatus == "suspendido") {
+                    "cancelado"
+                } else {
+                    rawStatus
+                }
+
+                val statusColor = when (status) {
+                    "entregado" -> GreenAccent
+                    "cancelado" -> Color.Red
+                    "camino" -> OrangeSoft
+                    "preparando" -> BrownMid
+                    else -> Color.Gray
+                }
+
+                Text(
+                    text = "Estado: ${status.uppercase()}",
+                    color = statusColor,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.Center
+            ) {
+
+                Text(
+                    text = "₡${pedido.total ?: 0.0}",
+                    fontWeight = FontWeight.Bold,
+                    color = BrownDark
+                )
+
+                val rawStatus2 = pedido.estado ?: "pendiente"
+
+                val status = if (rawStatus2 == "suspendido") {
+                    "cancelado"
+                } else {
+                    rawStatus2
+                }
+
+                val isCancelable =
+                    status != "entregado" &&
+                            status != "cancelado"
+
+                if (isCancelable) {
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    IconButton(
+                        onClick = { onCancelClick() },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cancelar Pedido",
+                            tint = Color.Red,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CategoryItem(
+    name: String,
+    icon: ImageVector,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+
+    Card(
+        modifier = Modifier
+            .width(85.dp)
+            .aspectRatio(0.85f)
+            .clickable { onClick() },
+
+        shape = RoundedCornerShape(24.dp),
+
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) {
+                BrownDark
+            } else {
+                WhiteCard
+            }
+        )
+    ) {
+
+        Column(
+            modifier = Modifier.fillMaxSize(),
+
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+
+            Icon(
+                imageVector = icon,
+                contentDescription = name,
+                modifier = Modifier.size(28.dp),
+                tint = if (isSelected) Color.White else BrownDark
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = name,
+                color = if (isSelected) Color.White else TextDark,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun ComboCard(
+    combo: ComboItem,
+    onAddClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(150.dp),
+
+        shape = RoundedCornerShape(16.dp),
+
+        colors = CardDefaults.cardColors(
+            containerColor = WhiteCard
+        ),
+
+        border = BorderStroke(1.dp, CreamDark)
+    ) {
+
+        Box(modifier = Modifier.fillMaxSize()) {
+
+            Column(
+                modifier = Modifier
+                    .padding(12.dp)
+                    .fillMaxHeight(),
+
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+
+                Column {
+
+                    Text(
+                        text = "Combo #${combo.numeroCombo}",
+                        color = BrownMid,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = combo.nombre.ifBlank { "Combo" },
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        fontSize = 14.sp,
+                        lineHeight = 16.sp,
+                        color = BrownDark,
+                        modifier = Modifier.padding(end = 24.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "₡${combo.precio}",
+                    fontWeight = FontWeight.ExtraBold,
+                    color = OrangeSoft,
+                    fontSize = 14.sp
+                )
+            }
+
+            IconButton(
+                onClick = onAddClick,
+
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+                    .size(36.dp)
+                    .background(
+                        BrownDark,
+                        RoundedCornerShape(12.dp)
+                    )
+            ) {
+
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Agregar",
+                    tint = Color.White
+                )
+            }
         }
     }
 }

@@ -13,12 +13,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cletaeats.network.CletaApi
 import com.cletaeats.network.RegisterRequest
+import com.cletaeats.ui.components.CletaInput
 import com.cletaeats.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -59,7 +60,7 @@ fun RegisterScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text("Crear Cuenta", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = BrownDark)
-            Text("Únete a CletaEats hoy", color = BrownLight, modifier = Modifier.padding(bottom = 24.dp))
+            Text("Únete a CletaEats hoy", color = BrownLight, modifier = Modifier.padding(bottom = 20.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 RoleCard("Cliente", rol == "cliente", Modifier.weight(1f)) { rol = "cliente" }
@@ -75,16 +76,16 @@ fun RegisterScreen(
                     if (filtered.length <= 20) username = filtered
                 },
                 label = "Usuario",
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 isError = username.isNotEmpty() && !isUsernameValid,
                 supportingText = if (username.isNotEmpty() && !isUsernameValid) "Mínimo 3 caract. (letras, num, _)" else null
             )
             CletaInput(
                 value = password,
-                onValueChange = { input ->
-                    if (input.length <= 30) password = input
-                },
+                onValueChange = { input -> if (input.length <= 30) password = input },
                 label = "Contraseña",
                 isPassword = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 isError = password.isNotEmpty() && !isPasswordValid,
                 supportingText = if (password.isNotEmpty() && !isPasswordValid) "Mínimo 6 caracteres" else null
             )
@@ -95,6 +96,7 @@ fun RegisterScreen(
                     if (filtered.length <= 50) nombre = filtered
                 },
                 label = "Nombre Completo",
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 isError = nombre.isNotEmpty() && !isNombreValid,
                 supportingText = if (nombre.isNotEmpty() && !isNombreValid) "Mínimo 3 letras (solo letras/espacios)" else null
             )
@@ -105,17 +107,15 @@ fun RegisterScreen(
                     if (filtered.length <= 12) cedula = filtered
                 },
                 label = "Cédula",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                 isError = cedula.isNotEmpty() && !isCedulaValid,
                 supportingText = if (cedula.isNotEmpty() && !isCedulaValid) "Debe ser de 9 a 12 dígitos" else null
             )
             CletaInput(
                 value = email,
-                onValueChange = { input ->
-                    if (input.length <= 50) email = input.trim()
-                },
+                onValueChange = { input -> if (input.length <= 50) email = input.trim() },
                 label = "Correo Electrónico",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
                 isError = email.isNotEmpty() && !isEmailValid,
                 supportingText = if (email.isNotEmpty() && !isEmailValid) "Correo inválido" else null
             )
@@ -126,17 +126,16 @@ fun RegisterScreen(
                     if (filtered.length <= 15) telefono = filtered
                 },
                 label = "Teléfono",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                 isError = telefono.isNotEmpty() && !isTelefonoValid,
                 supportingText = if (telefono.isNotEmpty() && !isTelefonoValid) "Debe ser de 8 a 15 dígitos" else null
             )
             CletaInput(
                 value = direccion,
-                onValueChange = { input ->
-                    if (input.length <= 150) direccion = input
-                },
+                onValueChange = { input -> if (input.length <= 150) direccion = input },
                 label = "Dirección Exacta",
-                singleLine = false,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 isError = direccion.isNotEmpty() && !isDireccionValid,
                 supportingText = if (direccion.isNotEmpty() && !isDireccionValid) "Mínimo 10 caracteres" else null
             )
@@ -207,33 +206,3 @@ private fun RoleCard(label: String, isSelected: Boolean, modifier: Modifier, onC
         }
     }
 }
-
-@Composable
-private fun CletaInput(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    isPassword: Boolean = false,
-    singleLine: Boolean = true,
-    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    isError: Boolean = false,
-    supportingText: String? = null
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        singleLine = singleLine,
-        visualTransformation = if (isPassword) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        shape = RoundedCornerShape(12.dp),
-        keyboardOptions = keyboardOptions,
-        isError = isError,
-        supportingText = supportingText?.let { { Text(it, color = MaterialTheme.colorScheme.error) } },
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = OrangeSoft,
-            unfocusedBorderColor = BrownLight,
-            focusedLabelColor = BrownDark
-        )
-    )
-}

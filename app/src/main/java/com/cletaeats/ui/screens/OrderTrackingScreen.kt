@@ -15,7 +15,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.cletaeats.ui.theme.*
 
 @Composable
@@ -28,7 +27,6 @@ fun OrderTrackingScreen(onBack: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Icono animado o grande
         Surface(
             modifier = Modifier.size(120.dp),
             shape = RoundedCornerShape(60.dp),
@@ -61,7 +59,6 @@ fun OrderTrackingScreen(onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // Pasos del pedido
         TrackingStep("Pedido Recibido", "El restaurante ha aceptado tu orden", Icons.Default.CheckCircle, true)
         TrackingDivider()
         TrackingStep("Preparando", "Tu comida está en la cocina", Icons.Default.Restaurant, true)
