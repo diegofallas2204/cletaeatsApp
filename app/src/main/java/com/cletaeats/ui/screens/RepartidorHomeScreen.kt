@@ -16,6 +16,7 @@ import com.cletaeats.ui.components.RepartidorBottomBar
 import com.cletaeats.ui.theme.BrownDark
 import com.cletaeats.ui.theme.Cream
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,7 +49,10 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
 
     LaunchedEffect(Unit) {
         isLoading = true
-        refreshData()
+        while (true) {
+            refreshData()
+            delay(5000) // Poll cada 5 segundos para tiempo real
+        }
     }
 
     fun updateStatus(pedido: PedidoItem, nuevoEstado: String) {

@@ -74,8 +74,6 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
 
     // ── Carga inicial: restaurantes con estrategia cache-first ─────────────
     LaunchedEffect(connectionState) {
-        val token = TokenManager.token ?: return@LaunchedEffect
-        val authHeader = "Bearer $token"
         val isOnline = connectionState is ConnectionState.Available
 
         // 1. Mostrar caché inmediatamente si existe (evita pantalla de carga)
@@ -107,12 +105,26 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         // 3. Actualizar restaurantes, perfil y tarjetas desde el servidor en background
         if (isOnline) {
             try {
+                val token = TokenManager.token ?: return@LaunchedEffect
+                val authHeader = "Bearer $token"
                 val restResp = CletaApi.retrofitService.getRestaurantes()
                 if (restResp.success) {
                     val nuevos = restResp.data ?: emptyList()
                     restaurantes = nuevos
                     sqliteHelper.guardarRestaurantes(nuevos)
                     Log.d("CletaEats", "Restaurantes actualizados desde API")
+                    // Duplicar todos los combos localmente
+                    nuevos.forEach { rest ->
+                        try {
+                            val comboResp = CletaApi.retrofitService.getCombosByRestaurant(authHeader, rest.id)
+                            if (comboResp.success) {
+                                val combos = comboResp.data ?: emptyList()
+                                sqliteHelper.guardarCombos(rest.id, combos)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("CletaEats", "Error descargando combos de restaurante ${rest.id}: ${e.message}")
+                        }
+                    }
                 }
                 val tarjetasResp = CletaApi.retrofitService.getTarjetas(authHeader)
                 if (tarjetasResp.success) {

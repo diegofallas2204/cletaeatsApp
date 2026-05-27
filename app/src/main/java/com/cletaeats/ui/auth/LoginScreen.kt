@@ -130,12 +130,21 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {
                             val response = CletaApi.retrofitService.login(LoginRequest(username, password))
                             if (response.success) {
                                 val token = response.token ?: response.data?.token
+                                val actualRol = response.rol ?: response.data?.rol ?: "cliente"
+
+                                if (actualRol.equals("repartidor", ignoreCase = true) && rol == "cliente") {
+                                    errorMessage = "Debe registrarse como cliente."
+                                    showError = true
+                                    isLoading = false
+                                    return@launch
+                                }
+
                                 if (token != null) {
                                     // Guardar sesión de forma persistente en disco
                                     SessionManager.saveSession(
                                         token    = token,
                                         username = username,
-                                        rol      = rol
+                                        rol      = if (actualRol.equals("admin", ignoreCase = true)) "admin" else rol
                                     )
                                     onLoginSuccess()
                                 } else {

@@ -113,9 +113,9 @@ class CletaSQLiteHelper(context: Context) :
                 lista.add(
                     RestauranteItem(
                         id = cursor.getInt(0),
-                        nombre = cursor.getString(1),
-                        cedulaJuridica = cursor.getString(2),
-                        direccion = cursor.getString(3),
+                        nombre = cursor.getString(1) ?: "",
+                        cedulaJuridica = cursor.getString(2) ?: "",
+                        direccion = cursor.getString(3) ?: "",
                         tipoComida = cursor.getString(4)
                     )
                 )
@@ -159,7 +159,7 @@ class CletaSQLiteHelper(context: Context) :
                         id = cursor.getInt(0),
                         restauranteId = cursor.getInt(1),
                         numeroCombo = cursor.getInt(2),
-                        nombre = cursor.getString(3),
+                        nombre = cursor.getString(3) ?: "",
                         precio = cursor.getDouble(4)
                     )
                 )
