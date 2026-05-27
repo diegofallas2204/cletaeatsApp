@@ -2,6 +2,8 @@ package com.cletaeats.ui.auth
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -19,6 +21,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cletaeats.R
 import com.cletaeats.ui.theme.*
 import com.cletaeats.network.CletaApi
 import com.cletaeats.network.LoginRequest
@@ -44,13 +47,12 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(
-            text = "🍜 CletaEats",
-            style = MaterialTheme.typography.displayLarge.copy(
-                color = BrownDark,
-                fontSize = 32.sp
-            ),
-            modifier = Modifier.padding(bottom = 24.dp)
+        Image(
+            painter = painterResource(id = R.drawable.cletaeats_logo),
+            contentDescription = "CletaEats Logo",
+            modifier = Modifier
+                .size(120.dp)
+                .padding(bottom = 24.dp)
         )
 
         // Selector de roles (Cliente vs Repartidor)
