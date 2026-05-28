@@ -91,6 +91,9 @@ data class PedidoItem(
     @SerializedName(value = "restauranteNombre", alternate = ["restaurante_nombre", "nombre_restaurante"])
     val restauranteNombre: String? = null,
 
+    @SerializedName(value = "restauranteId", alternate = ["restaurante_id", "id_restaurante"])
+    val restauranteId: Int? = null,
+
     val total: Double? = 0.0,
     val estado: String? = "pendiente",
 

@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import com.cletaeats.network.SessionManager
 import com.cletaeats.network.TokenManager
@@ -34,10 +35,17 @@ class MainActivity : ComponentActivity() {
         // Inicializar managers persistentes (necesitan Context)
         SessionManager.init(this)
         LocalCacheManager.init(this)
+        com.cletaeats.database.SyncManager.init(this)
 
         setContent {
             CletaEatsTheme {
                 val connectionState by connectivityState()
+
+                LaunchedEffect(connectionState) {
+                    if (connectionState is ConnectionState.Available) {
+                        com.cletaeats.database.SyncManager.sincronizar()
+                    }
+                }
 
                 Surface(
                     modifier = Modifier.fillMaxSize(),

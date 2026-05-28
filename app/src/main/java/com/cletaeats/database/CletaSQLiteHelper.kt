@@ -8,12 +8,19 @@ import com.cletaeats.network.RestauranteItem
 import com.cletaeats.network.PedidoItem
 import com.cletaeats.network.MetodoPago
 
+data class PendingAction(
+    val id: Int,
+    val tipo: String,
+    val payload: String,
+    val timestamp: Long
+)
+
 class CletaSQLiteHelper(context: Context) :
     SQLiteOpenHelper(
         context,
         "cletaeats.db",
         null,
-        3
+        4
     ) {
 
     companion object {
@@ -21,6 +28,7 @@ class CletaSQLiteHelper(context: Context) :
         private const val TABLE_COMBOS = "combos"
         private const val TABLE_PEDIDOS = "pedidos"
         private const val TABLE_TARJETAS = "tarjetas"
+        private const val TABLE_PENDING_ACTIONS = "pending_actions"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -69,6 +77,16 @@ class CletaSQLiteHelper(context: Context) :
             )
             """.trimIndent()
         )
+        db.execSQL(
+            """
+            CREATE TABLE $TABLE_PENDING_ACTIONS (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tipo_operacion TEXT,
+                payload TEXT,
+                timestamp INTEGER
+            )
+            """.trimIndent()
+        )
     }
 
     override fun onUpgrade(
@@ -80,8 +98,49 @@ class CletaSQLiteHelper(context: Context) :
         db.execSQL("DROP TABLE IF EXISTS $TABLE_COMBOS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_PEDIDOS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_TARJETAS")
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_PENDING_ACTIONS")
         onCreate(db)
     }
+
+    fun guardarAccionPendiente(tipo: String, payload: String) {
+        val db = writableDatabase
+        val values = ContentValues().apply {
+            put("tipo_operacion", tipo)
+            put("payload", payload)
+            put("timestamp", System.currentTimeMillis())
+        }
+        db.insert(TABLE_PENDING_ACTIONS, null, values)
+        android.util.Log.d("CletaEats", "Acción pendiente guardada: $tipo")
+    }
+
+    fun obtenerAccionesPendientes(): List<PendingAction> {
+        val lista = mutableListOf<PendingAction>()
+        try {
+            val db = readableDatabase
+            val cursor = db.rawQuery("SELECT * FROM $TABLE_PENDING_ACTIONS ORDER BY id ASC", null)
+            while (cursor.moveToNext()) {
+                lista.add(
+                    PendingAction(
+                        id = cursor.getInt(0),
+                        tipo = cursor.getString(1) ?: "",
+                        payload = cursor.getString(2) ?: "",
+                        timestamp = cursor.getLong(3)
+                    )
+                )
+            }
+            cursor.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return lista
+    }
+
+    fun eliminarAccionPendiente(id: Int) {
+        val db = writableDatabase
+        db.delete(TABLE_PENDING_ACTIONS, "id = ?", arrayOf(id.toString()))
+        android.util.Log.d("CletaEats", "Acción pendiente eliminada con id: $id")
+    }
+
 
     fun guardarRestaurantes(lista: List<RestauranteItem>) {
         val db = writableDatabase

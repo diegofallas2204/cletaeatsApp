@@ -30,6 +30,9 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
     
     val coroutineScope = rememberCoroutineScope()
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val sqliteHelper = remember { com.cletaeats.database.CletaSQLiteHelper(context) }
+
     fun refreshData() {
         coroutineScope.launch {
             try {
@@ -54,7 +57,16 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                 
                 // Unificamos la lista evitando duplicados por ID
                 val combined = (mios + disp).distinctBy { it.id }
-                pedidos = combined
+                val restaurantes = sqliteHelper.obtenerRestaurantes()
+                
+                pedidos = combined.map { pedido ->
+                    if ((pedido.restauranteNombre.isNullOrEmpty() || pedido.restauranteNombre == "Restaurante") && pedido.restauranteId != null) {
+                        val rName = restaurantes.find { it.id == pedido.restauranteId }?.nombre
+                        pedido.copy(restauranteNombre = rName ?: "Restaurante")
+                    } else {
+                        pedido
+                    }
+                }
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error crítico en refreshData: ${e.message}")
             } finally {
@@ -86,7 +98,11 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                     refreshData()
                 }
             } catch (e: Exception) {
-                Log.e("CletaEats", "Error al actualizar estado del pedido: ${e.message}")
+                Log.e("CletaEats", "Error al actualizar estado del pedido offline: ${e.message}")
+                val updateReq = com.cletaeats.database.UpdateStatusPayload(pedido.id, nuevoEstado)
+                val jsonUpdate = com.google.gson.Gson().toJson(updateReq)
+                com.cletaeats.database.SyncManager.guardarAccionPendiente("UPDATE_ORDER_STATUS", jsonUpdate)
+                pedidos = pedidos.map { if (it.id == pedido.id) it.copy(estado = nuevoEstado) else it }
             } finally {
                 isSubmittingStatus = false
             }
@@ -115,7 +131,14 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                     refreshData()
                 }
             } catch (e: Exception) {
-                Log.e("CletaEats", "Error al asignar pedido: ${e.message}")
+                Log.e("CletaEats", "Error al asignar pedido offline: ${e.message}")
+                com.cletaeats.database.SyncManager.guardarAccionPendiente("ASSIGN_ORDER", pedido.id.toString())
+                val updateReq = com.cletaeats.database.UpdateStatusPayload(pedido.id, "aceptado")
+                val jsonUpdate = com.google.gson.Gson().toJson(updateReq)
+                com.cletaeats.database.SyncManager.guardarAccionPendiente("UPDATE_ORDER_STATUS", jsonUpdate)
+
+                pedidos = pedidos.map { if (it.id == pedido.id) it.copy(estado = "aceptado") else it }
+                activeTab = RepartidorActiveTab.HISTORIAL
             } finally {
                 isSubmittingStatus = false
             }
