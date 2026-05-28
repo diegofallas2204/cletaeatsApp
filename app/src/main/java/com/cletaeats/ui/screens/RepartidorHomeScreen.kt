@@ -34,12 +34,29 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
         coroutineScope.launch {
             try {
                 val t = TokenManager.token ?: return@launch
-                val response = CletaApi.retrofitService.getRepartidorPedidos("Bearer $t")
-                if (response.success) {
-                    pedidos = response.data ?: emptyList()
+                
+                // Hacemos las llamadas de forma independiente para que, si una falla (por ejemplo un 404 porque no se ha subido a Railway), la otra siga funcionando.
+                var mios: List<PedidoItem> = emptyList()
+                try {
+                    val responseMios = CletaApi.retrofitService.getRepartidorPedidos("Bearer $t")
+                    if (responseMios.success) mios = responseMios.data ?: emptyList()
+                } catch (e: Exception) {
+                    Log.e("CletaEats", "Error cargando pedidos asignados: ${e.message}")
                 }
+
+                var disp: List<PedidoItem> = emptyList()
+                try {
+                    val responseDisp = CletaApi.retrofitService.getPedidosDisponibles("Bearer $t")
+                    if (responseDisp.success) disp = responseDisp.data ?: emptyList()
+                } catch (e: Exception) {
+                    Log.e("CletaEats", "Error cargando pedidos disponibles (¿Endpoint no existe en prod?): ${e.message}")
+                }
+                
+                // Unificamos la lista evitando duplicados por ID
+                val combined = (mios + disp).distinctBy { it.id }
+                pedidos = combined
             } catch (e: Exception) {
-                Log.e("CletaEats", "Error cargando pedidos repartidor: ${e.message}")
+                Log.e("CletaEats", "Error crítico en refreshData: ${e.message}")
             } finally {
                 isLoading = false
                 isRefreshing = false
@@ -67,12 +84,38 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                 )
                 if (response.success) {
                     refreshData()
-                    if (nuevoEstado == "aceptado") {
-                        activeTab = RepartidorActiveTab.HISTORIAL
-                    }
                 }
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error al actualizar estado del pedido: ${e.message}")
+            } finally {
+                isSubmittingStatus = false
+            }
+        }
+    }
+
+    fun acceptOrder(pedido: PedidoItem) {
+        coroutineScope.launch {
+            // Regla: Solo un pedido activo a la vez
+            val tieneAsignado = pedidos.any { it.estado == "aceptado" || it.estado == "en_camino" || it.estado == "preparando" }
+            if (tieneAsignado) {
+                // Idealmente mostraríamos un Snackbar/Toast aquí, pero a nivel lógico bloqueamos
+                Log.e("CletaEats", "El repartidor ya tiene un pedido activo. No puede asignar otro.")
+                return@launch
+            }
+
+            isSubmittingStatus = true
+            try {
+                val t = TokenManager.token ?: return@launch
+                // Primero asignamos el pedido a este repartidor
+                val responseAsignar = CletaApi.retrofitService.asignarPedido("Bearer $t", pedido.id)
+                if (responseAsignar.success) {
+                    // Luego le actualizamos el estado a 'aceptado'
+                    CletaApi.retrofitService.updateOrderStatus("Bearer $t", pedido.id, UpdateStatusRequest("aceptado"))
+                    activeTab = RepartidorActiveTab.HISTORIAL
+                    refreshData()
+                }
+            } catch (e: Exception) {
+                Log.e("CletaEats", "Error al asignar pedido: ${e.message}")
             } finally {
                 isSubmittingStatus = false
             }
@@ -112,7 +155,7 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                     RepartidorActiveTab.INICIO -> RepartidorInicioTab(
                         pedidos = pedidos,
                         isRefreshing = isRefreshing,
-                        onAcceptOrder = { updateStatus(it, "aceptado") },
+                        onAcceptOrder = { acceptOrder(it) },
                         onRefresh = { isRefreshing = true; refreshData() }
                     )
                     RepartidorActiveTab.HISTORIAL -> RepartidorHistorialTab(

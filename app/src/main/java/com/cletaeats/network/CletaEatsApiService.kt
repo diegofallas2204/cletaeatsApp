@@ -61,6 +61,15 @@ interface CletaApiService {
     @GET("api/repartidor/pedidos")
     suspend fun getRepartidorPedidos(@Header("Authorization") token: String): CletaResponse<List<PedidoItem>>
 
+    @GET("api/repartidor/pedidos/disponibles")
+    suspend fun getPedidosDisponibles(@Header("Authorization") token: String): CletaResponse<List<PedidoItem>>
+
+    @PUT("api/repartidor/pedidos/{pedidoId}/asignar")
+    suspend fun asignarPedido(
+        @Header("Authorization") token: String,
+        @Path("pedidoId") pedidoId: Int
+    ): CletaResponse<String>
+
     @PUT("api/repartidor/pedidos/{pedidoId}/estado")
     suspend fun updateOrderStatus(
         @Header("Authorization") token: String,

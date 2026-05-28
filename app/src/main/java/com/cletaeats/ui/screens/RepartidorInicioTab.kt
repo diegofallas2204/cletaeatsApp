@@ -37,7 +37,8 @@ fun RepartidorInicioTab(
 
     val disponibles = pedidos.filter { 
         val est = it.estado?.lowercase() ?: ""
-        est == "pendiente" || est == "preparando" 
+        // El backend devuelve "preparacion", "pendiente" o "preparando"
+        est == "pendiente" || est == "preparando" || est == "preparacion"
     }
 
     val sortedDisponibles = when (sortOption) {
