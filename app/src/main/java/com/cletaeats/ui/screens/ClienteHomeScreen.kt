@@ -1,4 +1,4 @@
-package com.cletaeats.ui.screens
+﻿package com.cletaeats.ui.screens
 
 import android.util.Log
 import androidx.compose.foundation.layout.*
@@ -81,16 +81,16 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         }
     }
 
-    // ── Carga inicial: restaurantes con estrategia cache-first ─────────────
+    // ÔöÇÔöÇ Carga inicial: restaurantes con estrategia cache-first ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
     LaunchedEffect(connectionState) {
         val isOnline = connectionState is ConnectionState.Available
 
-        // 1. Mostrar caché inmediatamente si existe (evita pantalla de carga)
+        // 1. Mostrar cach├® inmediatamente si existe (evita pantalla de carga)
         val cachedRestaurantes = sqliteHelper.obtenerRestaurantes()
         if (cachedRestaurantes.isNotEmpty()) {
             restaurantes = cachedRestaurantes
             isLoading = false
-            Log.d("CletaEats", "Restaurantes cargados desde caché SQLite (${cachedRestaurantes.size})")
+            Log.d("CletaEats", "Restaurantes cargados desde cach├® SQLite (${cachedRestaurantes.size})")
         } else {
             // Fallback to old cache manager
             val oldCache = LocalCacheManager.getRestaurantesOffline()
@@ -103,12 +103,12 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
             }
         }
 
-        // También restaurar perfil desde caché
+        // Tambi├®n restaurar perfil desde cach├®
         val cachedProfile = LocalCacheManager.getUserProfile()
             ?: LocalCacheManager.getUserProfileOffline()
         if (cachedProfile != null) userProfile = cachedProfile
 
-        // 2. Cargar historial y tarjetas siempre desde el servidor (datos dinámicos)
+        // 2. Cargar historial y tarjetas siempre desde el servidor (datos din├ímicos)
         refreshData()
 
         // 3. Actualizar restaurantes, perfil y tarjetas desde el servidor en background
@@ -172,7 +172,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         } else {
             if (restaurantes.isEmpty()) {
                 restaurantes = sqliteHelper.obtenerRestaurantes()
-                Log.w("CletaEats", "Sin conexión, usando caché offline de restaurantes")
+                Log.w("CletaEats", "Sin conexi├│n, usando cach├® offline de restaurantes")
             }
             if (tarjetasGuardadas.isEmpty()) {
                 tarjetasGuardadas = sqliteHelper.obtenerTarjetas()
@@ -182,26 +182,26 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         isLoading = false
     }
 
-    // ── Combos por restaurante: también cache-first ────────────────────────
+    // ÔöÇÔöÇ Combos por restaurante: tambi├®n cache-first ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
     LaunchedEffect(selectedRestaurant, connectionState) {
         if (selectedRestaurant != null) {
             val restauranteId = selectedRestaurant!!.id
             val isOnline = connectionState is ConnectionState.Available
 
-            // 1. Mostrar caché si existe
+            // 1. Mostrar cach├® si existe
             val cachedCombos = sqliteHelper.obtenerCombos(restauranteId)
             if (cachedCombos.isNotEmpty()) {
                 menuCombos = cachedCombos
                 cartItems = emptyList()
                 isMenuLoading = false
-                Log.d("CletaEats", "Combos de restaurante $restauranteId desde caché")
+                Log.d("CletaEats", "Combos de restaurante $restauranteId desde cach├®")
             } else {
                 isMenuLoading = true
                 menuCombos = emptyList()
                 cartItems = emptyList()
             }
 
-            // 2. Actualizar desde el servidor si hay conexión
+            // 2. Actualizar desde el servidor si hay conexi├│n
             if (isOnline) {
                 try {
                     val token = TokenManager.token
@@ -217,15 +217,15 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                     }
                 } catch (e: Exception) {
                     Log.e("CletaEats", "Error combos desde API: ${e.message}")
-                    // Si falla y no había caché válido, intentar caché vencido
+                    // Si falla y no hab├¡a cach├® v├ílido, intentar cach├® vencido
                     if (menuCombos.isEmpty()) {
                         menuCombos = sqliteHelper.obtenerCombos(restauranteId)
                     }
                 }
             } else if (menuCombos.isEmpty()) {
-                // Sin conexión: intentar con caché vencido
+                // Sin conexi├│n: intentar con cach├® vencido
                 menuCombos = sqliteHelper.obtenerCombos(restauranteId)
-                Log.w("CletaEats", "Sin conexión, usando caché offline de combos")
+                Log.w("CletaEats", "Sin conexi├│n, usando cach├® offline de combos")
             }
 
             isMenuLoading = false
@@ -241,7 +241,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("🍜 CLETAEATS", fontWeight = FontWeight.Bold, color = Color.White) },
+                    title = { Text("­ƒì£ CLETAEATS", fontWeight = FontWeight.Bold, color = Color.White) },
                     actions = { IconButton(onClick = onLogout) { Icon(Icons.Default.Logout, "Logout", tint = Color.White) } },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = BrownDark)
                 )
@@ -373,7 +373,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             throw Exception("Fallback to local")
                         }
                     } catch (e: Exception) {
-                        Log.e("CletaEats", "Error confirmación pedido: ${e.message}")
+                        Log.e("CletaEats", "Error confirmaci├│n pedido: ${e.message}")
                         try {
                             val request = OrderUtils.createPayload(selectedRestaurant!!.id, cartItems, numeroTarjetaFinal)
                             val gson = com.google.gson.Gson()

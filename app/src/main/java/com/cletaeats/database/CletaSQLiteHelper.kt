@@ -252,6 +252,14 @@ class CletaSQLiteHelper(context: Context) :
         }
     }
 
+    fun reemplazarPedidoId(oldId: Int, newId: Int) {
+        val pedidosActuales = obtenerPedidos()
+        val actualizados = pedidosActuales.map { pedido ->
+            if (pedido.id == oldId) pedido.copy(id = newId) else pedido
+        }
+        guardarPedidos(actualizados)
+    }
+
     fun obtenerPedidos(): List<PedidoItem> {
         val lista = mutableListOf<PedidoItem>()
         try {

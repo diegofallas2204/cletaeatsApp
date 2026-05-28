@@ -104,8 +104,24 @@ data class PedidoItem(
 )
 
 data class CreateOrderPayload(
+    val restauranteId: Int,
+    val items: List<CreateOrderItem>
+)
+
+data class CreateOrderItem(
+    val comboId: Int,
+    val cantidad: Int,
+    val notas: String? = null
+)
+
+data class PendingCreateOrderPayload(
+    val localOrderId: Int? = null,
+    val request: CreateOrderPayload
+)
+
+data class LegacyCreateOrderPayload(
     val pedido: OrderRequest,
-    val esFeriado: Boolean
+    val esFeriado: Boolean? = null
 )
 
 data class MetodoPago(

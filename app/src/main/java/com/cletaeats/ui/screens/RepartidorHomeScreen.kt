@@ -11,10 +11,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import com.cletaeats.network.*
+import com.cletaeats.ui.components.ConnectionStatusBanner
 import com.cletaeats.ui.components.RepartidorActiveTab
 import com.cletaeats.ui.components.RepartidorBottomBar
 import com.cletaeats.ui.theme.BrownDark
 import com.cletaeats.ui.theme.Cream
+import com.cletaeats.utils.ConnectionState
+import com.cletaeats.utils.connectivityState
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 
@@ -27,6 +30,8 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
     var isRefreshing by remember { mutableStateOf(false) }
     var isSubmittingStatus by remember { mutableStateOf(false) }
     var isOnline by remember { mutableStateOf(true) }
+    val connectionState by connectivityState()
+    val networkOnline = connectionState is ConnectionState.Available
     
     val coroutineScope = rememberCoroutineScope()
 
@@ -58,15 +63,51 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                 // Unificamos la lista evitando duplicados por ID
                 val combined = (mios + disp).distinctBy { it.id }
                 val restaurantes = sqliteHelper.obtenerRestaurantes()
-                
+                val localPedidos = sqliteHelper.obtenerPedidos()
+
+                val localById = localPedidos.associateBy { it.id }
+
                 pedidos = combined.map { pedido ->
-                    if ((pedido.restauranteNombre.isNullOrEmpty() || pedido.restauranteNombre == "Restaurante") && pedido.restauranteId != null) {
-                        val rName = restaurantes.find { it.id == pedido.restauranteId }?.nombre
-                        pedido.copy(restauranteNombre = rName ?: "Restaurante")
+                    val local = localById[pedido.id]
+                    if (local != null) {
+                        val mergedStatus = when (local.estado?.lowercase()) {
+                            "aceptado", "en_camino", "preparando", "entregado", "cancelado" -> local.estado
+                            else -> pedido.estado
+                        }
+                        val restauranteNombre = when {
+                            !local.restauranteNombre.isNullOrBlank() -> local.restauranteNombre
+                            (!pedido.restauranteNombre.isNullOrEmpty() && pedido.restauranteNombre != "Restaurante") -> pedido.restauranteNombre
+                            pedido.restauranteId != null -> restaurantes.find { it.id == pedido.restauranteId }?.nombre ?: "Restaurante"
+                            else -> "Restaurante"
+                        }
+                        pedido.copy(
+                            restauranteNombre = restauranteNombre,
+                            estado = mergedStatus
+                        )
                     } else {
                         pedido
                     }
                 }
+
+                val mergedWithLocalOnly = (pedidos + localPedidos)
+                    .distinctBy { it.id }
+                    .map { pedido ->
+                        val restauranteNombre = when {
+                            !pedido.restauranteNombre.isNullOrBlank() && pedido.restauranteNombre != "Restaurante" -> pedido.restauranteNombre
+                            pedido.restauranteId != null -> restaurantes.find { it.id == pedido.restauranteId }?.nombre ?: "Restaurante"
+                            else -> "Restaurante"
+                        }
+                        pedido.copy(restauranteNombre = restauranteNombre)
+                    }
+
+                // Persistir la lista combinada en caché local para mantener estado offline
+                try {
+                    sqliteHelper.guardarPedidos(mergedWithLocalOnly)
+                } catch (e: Exception) {
+                    Log.w("CletaEats", "No se pudo guardar pedidos en SQLite: ${e.message}")
+                }
+
+                pedidos = mergedWithLocalOnly
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error crítico en refreshData: ${e.message}")
             } finally {
@@ -84,6 +125,13 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
         }
     }
 
+    // Re-escuchar cuando termine una sincronización global para refrescar datos
+    LaunchedEffect(Unit) {
+        com.cletaeats.database.SyncManager.syncCompleted.collect {
+            refreshData()
+        }
+    }
+
     fun updateStatus(pedido: PedidoItem, nuevoEstado: String) {
         coroutineScope.launch {
             isSubmittingStatus = true
@@ -95,6 +143,10 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                     UpdateStatusRequest(nuevoEstado)
                 )
                 if (response.success) {
+                    val actualizados = sqliteHelper.obtenerPedidos().map {
+                        if (it.id == pedido.id) it.copy(estado = nuevoEstado) else it
+                    }
+                    sqliteHelper.guardarPedidos(actualizados)
                     refreshData()
                 }
             } catch (e: Exception) {
@@ -127,7 +179,14 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                 if (responseAsignar.success) {
                     // Luego le actualizamos el estado a 'aceptado'
                     CletaApi.retrofitService.updateOrderStatus("Bearer $t", pedido.id, UpdateStatusRequest("aceptado"))
-                    activeTab = RepartidorActiveTab.HISTORIAL
+
+                    // Update local UI immediately to reflect the accepted status while we refresh in background
+                    pedidos = pedidos.map { if (it.id == pedido.id) it.copy(estado = "aceptado") else it }
+                    val actualizados = sqliteHelper.obtenerPedidos().map {
+                        if (it.id == pedido.id) it.copy(estado = "aceptado") else it
+                    }
+                    sqliteHelper.guardarPedidos(actualizados)
+                    Log.d("CletaEats", "Pedido ${pedido.id} aceptado. El usuario puede ir al historial cuando quiera.")
                     refreshData()
                 }
             } catch (e: Exception) {
@@ -137,8 +196,17 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                 val jsonUpdate = com.google.gson.Gson().toJson(updateReq)
                 com.cletaeats.database.SyncManager.guardarAccionPendiente("UPDATE_ORDER_STATUS", jsonUpdate)
 
+                // Update local UI and persist locally so reconnection won't overwrite it
                 pedidos = pedidos.map { if (it.id == pedido.id) it.copy(estado = "aceptado") else it }
-                activeTab = RepartidorActiveTab.HISTORIAL
+                try {
+                    val stored = sqliteHelper.obtenerPedidos().toMutableList()
+                    val replaced = (stored.filter { it.id != pedido.id } + pedidos.filter { it.id == pedido.id }).distinctBy { it.id }
+                    sqliteHelper.guardarPedidos(stored.filter { it.id !in replaced.map { r -> r.id } } + replaced)
+                } catch (ex: Exception) {
+                    Log.w("CletaEats", "No se pudo persistir estado aceptado localmente: ${ex.message}")
+                }
+
+                Log.d("CletaEats", "Pedido ${pedido.id} quedó aceptado localmente; el usuario puede abrir historial manualmente.")
             } finally {
                 isSubmittingStatus = false
             }
@@ -164,11 +232,16 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
             )
         }
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            ConnectionStatusBanner(networkOnline)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+            ) {
             if (isLoading) {
                 Box(Modifier.fillMaxSize(), Alignment.Center) {
                     CircularProgressIndicator(color = BrownDark)
@@ -192,6 +265,7 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                         onOnlineToggle = { isOnline = it }
                     )
                 }
+            }
             }
         }
     }
