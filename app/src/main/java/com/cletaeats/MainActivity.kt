@@ -13,6 +13,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.work.*
+import com.cletaeats.database.SyncWorker
 import com.cletaeats.network.SessionManager
 import com.cletaeats.network.TokenManager
 import com.cletaeats.ui.auth.LoginScreen
@@ -25,6 +27,7 @@ import com.cletaeats.utils.LocalCacheManager
 import com.cletaeats.utils.connectivityState
 import com.cletaeats.utils.ConnectionState
 import com.cletaeats.ui.components.NoInternetScreen
+import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
 
@@ -36,6 +39,16 @@ class MainActivity : ComponentActivity() {
         SessionManager.init(this)
         LocalCacheManager.init(this)
         com.cletaeats.database.SyncManager.init(this)
+
+        // Sync periódico en background cada 15 minutos (solo con red)
+        val syncRequest = PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "cletaeats_sync",
+            ExistingPeriodicWorkPolicy.KEEP,
+            syncRequest
+        )
 
         setContent {
             CletaEatsTheme {

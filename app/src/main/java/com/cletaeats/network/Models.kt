@@ -105,7 +105,8 @@ data class PedidoItem(
 
 data class CreateOrderPayload(
     val restauranteId: Int,
-    val items: List<CreateOrderItem>
+    val items: List<CreateOrderItem>,
+    val numeroTarjeta: String? = null
 )
 
 data class CreateOrderItem(

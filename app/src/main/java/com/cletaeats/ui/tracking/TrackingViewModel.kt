@@ -36,7 +36,10 @@ class TrackingViewModel(val pedido: PedidoItem) : ViewModel() {
                     cancellationState = CancellationState.Success(response.data ?: "Pedido cancelado")
                     onDone()
                 } else {
-                    cancellationState = CancellationState.Error(response.error ?: "Error al cancelar")
+                    // Servidor rechazó la cancelación: encolar para reintento
+                    com.cletaeats.database.SyncManager.handleOfflineCancel(pedido.id)
+                    cancellationState = CancellationState.Success("Cancelación guardada, se enviará al servidor pronto")
+                    onDone()
                 }
             } catch (e: Exception) {
                 com.cletaeats.database.SyncManager.handleOfflineCancel(pedido.id)

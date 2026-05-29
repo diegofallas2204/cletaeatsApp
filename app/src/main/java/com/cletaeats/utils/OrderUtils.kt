@@ -15,6 +15,7 @@ object OrderUtils {
     ): CreateOrderPayload {
         return CreateOrderPayload(
             restauranteId = restaurantId,
+            numeroTarjeta = tarjetaSeleccionada,
             items = cartItems.map {
                 com.cletaeats.network.CreateOrderItem(
                     comboId = it.combo.id,

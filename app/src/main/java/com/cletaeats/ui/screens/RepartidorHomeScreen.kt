@@ -123,12 +123,23 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                     }
                     sqliteHelper.guardarPedidos(actualizados)
                     refreshData()
+                } else {
+                    // Servidor rechazó el cambio: encolar y reintentar
+                    Log.w("CletaEats", "updateStatus rechazado por API, encolando: ${response}")
+                    val updateReq = com.cletaeats.database.UpdateStatusPayload(pedido.id, nuevoEstado)
+                    val jsonUpdate = com.google.gson.Gson().toJson(updateReq)
+                    com.cletaeats.database.SyncManager.guardarYSincronizar("UPDATE_ORDER_STATUS", jsonUpdate)
+                    val actualizados = sqliteHelper.obtenerPedidos().map {
+                        if (it.id == pedido.id) it.copy(estado = nuevoEstado) else it
+                    }
+                    sqliteHelper.guardarPedidos(actualizados)
+                    pedidos = pedidos.map { if (it.id == pedido.id) it.copy(estado = nuevoEstado) else it }
                 }
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error al actualizar estado del pedido offline: ${e.message}")
                 val updateReq = com.cletaeats.database.UpdateStatusPayload(pedido.id, nuevoEstado)
                 val jsonUpdate = com.google.gson.Gson().toJson(updateReq)
-                com.cletaeats.database.SyncManager.guardarAccionPendiente("UPDATE_ORDER_STATUS", jsonUpdate)
+                com.cletaeats.database.SyncManager.guardarYSincronizar("UPDATE_ORDER_STATUS", jsonUpdate)
                 val actualizados = sqliteHelper.obtenerPedidos().map {
                     if (it.id == pedido.id) it.copy(estado = nuevoEstado) else it
                 }
@@ -165,12 +176,23 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                         if (it.id == pedido.id) it.copy(estado = "aceptado") else it
                     }
                     sqliteHelper.guardarPedidos(actualizados)
-                    Log.d("CletaEats", "Pedido ${pedido.id} aceptado. El usuario puede ir al historial cuando quiera.")
+                    Log.d("CletaEats", "Pedido ${pedido.id} aceptado.")
                     refreshData()
+                } else {
+                    // Servidor rechazó la asignación: encolar para reintento
+                    Log.w("CletaEats", "asignarPedido rechazado por API, encolando: ${responseAsignar.error}")
+                    val updateReq = com.cletaeats.database.UpdateStatusPayload(pedido.id, "aceptado")
+                    val jsonUpdate = com.google.gson.Gson().toJson(updateReq)
+                    com.cletaeats.database.SyncManager.guardarYSincronizar("ASSIGN_ORDER", pedido.id.toString())
+                    com.cletaeats.database.SyncManager.guardarAccionPendiente("UPDATE_ORDER_STATUS", jsonUpdate)
+                    pedidos = pedidos.map { if (it.id == pedido.id) it.copy(estado = "aceptado") else it }
+                    sqliteHelper.guardarPedidos(sqliteHelper.obtenerPedidos().map {
+                        if (it.id == pedido.id) it.copy(estado = "aceptado") else it
+                    })
                 }
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error al asignar pedido offline: ${e.message}")
-                com.cletaeats.database.SyncManager.guardarAccionPendiente("ASSIGN_ORDER", pedido.id.toString())
+                com.cletaeats.database.SyncManager.guardarYSincronizar("ASSIGN_ORDER", pedido.id.toString())
                 val updateReq = com.cletaeats.database.UpdateStatusPayload(pedido.id, "aceptado")
                 val jsonUpdate = com.google.gson.Gson().toJson(updateReq)
                 com.cletaeats.database.SyncManager.guardarAccionPendiente("UPDATE_ORDER_STATUS", jsonUpdate)

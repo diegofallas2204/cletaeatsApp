@@ -314,7 +314,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                                         Log.e("CletaEats", "Error borrando tarjeta: ${e.message}")
                                         tarjetasGuardadas = tarjetasGuardadas.filter { it.id != id }
                                         sqliteHelper.eliminarTarjeta(id)
-                                        com.cletaeats.database.SyncManager.guardarAccionPendiente("DELETE_CARD", id.toString())
+                                        com.cletaeats.database.SyncManager.guardarYSincronizar("DELETE_CARD", id.toString())
                                     }
                                 }
                             }
@@ -360,14 +360,14 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
                             sqliteHelper.guardarTarjetas(tarjetasGuardadas)
                             val json = com.google.gson.Gson().toJson(nuevaTarjeta)
-                            com.cletaeats.database.SyncManager.guardarAccionPendiente("SAVE_CARD", json)
+                            com.cletaeats.database.SyncManager.guardarYSincronizar("SAVE_CARD", json)
                         }
                     } catch (e: Exception) {
                         Log.e("CletaEats", "Error guardando tarjeta: ${e.message}")
                         tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
                         sqliteHelper.guardarTarjetas(tarjetasGuardadas)
                         val json = com.google.gson.Gson().toJson(nuevaTarjeta)
-                        com.cletaeats.database.SyncManager.guardarAccionPendiente("SAVE_CARD", json)
+                        com.cletaeats.database.SyncManager.guardarYSincronizar("SAVE_CARD", json)
                     }
                 }
             },
@@ -397,7 +397,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             val request = OrderUtils.createPayload(selectedRestaurant!!.id, cartItems, numeroTarjetaFinal)
                             val gson = com.google.gson.Gson()
                             val pendingPayload = PendingCreateOrderPayload(localOrderId = localOrderId, request = request)
-                            com.cletaeats.database.SyncManager.guardarAccionPendiente(
+                            com.cletaeats.database.SyncManager.guardarYSincronizar(
                                 "CREATE_ORDER",
                                 gson.toJson(pendingPayload)
                             )
@@ -441,7 +441,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
                             sqliteHelper.guardarTarjetas(tarjetasGuardadas)
                             val json = com.google.gson.Gson().toJson(nuevaTarjeta)
-                            com.cletaeats.database.SyncManager.guardarAccionPendiente("SAVE_CARD", json)
+                            com.cletaeats.database.SyncManager.guardarYSincronizar("SAVE_CARD", json)
                             showPaymentDialog = false
                         }
                     } catch (e: Exception) {
@@ -449,7 +449,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
                         sqliteHelper.guardarTarjetas(tarjetasGuardadas)
                         val json = com.google.gson.Gson().toJson(nuevaTarjeta)
-                        com.cletaeats.database.SyncManager.guardarAccionPendiente("SAVE_CARD", json)
+                        com.cletaeats.database.SyncManager.guardarYSincronizar("SAVE_CARD", json)
                         showPaymentDialog = false
                     }
                 }
