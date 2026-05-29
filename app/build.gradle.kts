@@ -71,6 +71,9 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 
+    // OpenStreetMap (osmdroid)
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
+
     testImplementation("junit:junit:4.13.2")
     testImplementation("androidx.test:core:1.6.1")
 

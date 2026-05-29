@@ -1,4 +1,4 @@
-package com.cletaeats.ui.screens
+﻿package com.cletaeats.ui.screens
 
 import android.util.Log
 import androidx.compose.foundation.layout.*
@@ -17,7 +17,9 @@ import com.cletaeats.ui.theme.*
 import com.cletaeats.ui.tracking.*
 import com.cletaeats.utils.LocalCacheManager
 import com.cletaeats.utils.OrderUtils
+import com.cletaeats.utils.PedidoMergeUtils
 import com.cletaeats.utils.currentConnectivityState
+import com.cletaeats.utils.connectivityState
 import com.cletaeats.utils.ConnectionState
 import kotlinx.coroutines.launch
 
@@ -50,18 +52,33 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
     var orderToCancel by remember { mutableStateOf<PedidoItem?>(null) }
     var latestCreatedOrder by remember { mutableStateOf<PedidoItem?>(null) }
 
+    val connectionState by connectivityState()
+    val networkOnline = connectionState is ConnectionState.Available
+
     fun refreshData() {
         coroutineScope.launch {
             try {
                 val t = TokenManager.token ?: return@launch
-                val response = CletaApi.retrofitService.getClienteHistorial("Bearer $t")
-                if (response.success) {
-                    val nuevosPedidos = response.data ?: emptyList()
-                    historial = nuevosPedidos
-                    sqliteHelper.guardarPedidos(nuevosPedidos)
-                } else {
-                    historial = sqliteHelper.obtenerPedidos()
+                val restaurantesLocales = sqliteHelper.obtenerRestaurantes()
+                val localPedidos = sqliteHelper.obtenerPedidos()
+
+                var serverPedidos: List<PedidoItem> = emptyList()
+                try {
+                    val response = CletaApi.retrofitService.getClienteHistorial("Bearer $t")
+                    if (response.success) {
+                        serverPedidos = response.data ?: emptyList()
+                    }
+                } catch (e: Exception) {
+                    Log.e("CletaEats", "Error cargando historial desde API: ${e.message}")
                 }
+
+                val merged = if (serverPedidos.isNotEmpty()) {
+                    PedidoMergeUtils.mergeWithLocalCache(serverPedidos, localPedidos, restaurantesLocales)
+                } else {
+                    localPedidos
+                }
+                historial = merged
+                sqliteHelper.guardarPedidos(merged)
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error cargando historial: ${e.message}")
                 historial = sqliteHelper.obtenerPedidos()
@@ -69,45 +86,73 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         }
     }
 
-    // ── Carga inicial: restaurantes con estrategia cache-first ─────────────
     LaunchedEffect(Unit) {
-        val token = TokenManager.token ?: return@LaunchedEffect
-        val authHeader = "Bearer $token"
-        val isOnline = context.currentConnectivityState is ConnectionState.Available
+        com.cletaeats.database.SyncManager.syncCompleted.collect {
+            refreshData()
+        }
+    }
 
-        // 1. Mostrar caché inmediatamente si existe (evita pantalla de carga)
-        val cachedRestaurantes = LocalCacheManager.getRestaurantes()
-        if (cachedRestaurantes != null) {
+    // ÔöÇÔöÇ Carga inicial: restaurantes con estrategia cache-first ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    LaunchedEffect(connectionState) {
+        val isOnline = connectionState is ConnectionState.Available
+
+        // 1. Mostrar cach├® inmediatamente si existe (evita pantalla de carga)
+        val cachedRestaurantes = sqliteHelper.obtenerRestaurantes()
+        if (cachedRestaurantes.isNotEmpty()) {
             restaurantes = cachedRestaurantes
             isLoading = false
-            Log.d("CletaEats", "Restaurantes cargados desde caché (${cachedRestaurantes.size})")
+            Log.d("CletaEats", "Restaurantes cargados desde cach├® SQLite (${cachedRestaurantes.size})")
         } else {
-            isLoading = true
+            // Fallback to old cache manager
+            val oldCache = LocalCacheManager.getRestaurantesOffline()
+            if (!oldCache.isNullOrEmpty()) {
+                restaurantes = oldCache
+                sqliteHelper.guardarRestaurantes(oldCache)
+                isLoading = false
+            } else {
+                isLoading = true
+            }
         }
 
-        // También restaurar perfil desde caché
+        // Tambi├®n restaurar perfil desde cach├®
         val cachedProfile = LocalCacheManager.getUserProfile()
             ?: LocalCacheManager.getUserProfileOffline()
         if (cachedProfile != null) userProfile = cachedProfile
 
-        // 2. Cargar historial y tarjetas siempre desde el servidor (datos dinámicos)
+        // 2. Cargar historial y tarjetas siempre desde el servidor (datos din├ímicos)
         refreshData()
 
         // 3. Actualizar restaurantes, perfil y tarjetas desde el servidor en background
         if (isOnline) {
             try {
+                val token = TokenManager.token ?: return@LaunchedEffect
+                val authHeader = "Bearer $token"
                 val restResp = CletaApi.retrofitService.getRestaurantes()
                 if (restResp.success) {
                     val nuevos = restResp.data ?: emptyList()
                     restaurantes = nuevos
-                    LocalCacheManager.saveRestaurantes(nuevos)
+                    sqliteHelper.guardarRestaurantes(nuevos)
                     Log.d("CletaEats", "Restaurantes actualizados desde API")
+                    // Duplicar todos los combos localmente
+                    nuevos.forEach { rest ->
+                        try {
+                            val comboResp = CletaApi.retrofitService.getCombosByRestaurant(authHeader, rest.id)
+                            if (comboResp.success) {
+                                val combos = comboResp.data ?: emptyList()
+                                sqliteHelper.guardarCombos(rest.id, combos)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("CletaEats", "Error descargando combos de restaurante ${rest.id}: ${e.message}")
+                        }
+                    }
                 }
                 val tarjetasResp = CletaApi.retrofitService.getTarjetas(authHeader)
                 if (tarjetasResp.success) {
                     val nuevasTarjetas = tarjetasResp.data ?: emptyList()
-                    tarjetasGuardadas = nuevasTarjetas
-                    sqliteHelper.guardarTarjetas(nuevasTarjetas)
+                    val locales = sqliteHelper.obtenerTarjetas()
+                    val combinadas = (nuevasTarjetas + locales).distinctBy { it.numeroTarjeta }
+                    tarjetasGuardadas = combinadas
+                    sqliteHelper.guardarTarjetas(combinadas)
                 }
                 // Cargar perfil del usuario
                 try {
@@ -126,7 +171,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error carga inicial desde API: ${e.message}")
                 if (restaurantes.isEmpty()) {
-                    restaurantes = LocalCacheManager.getRestaurantesOffline() ?: emptyList()
+                    restaurantes = sqliteHelper.obtenerRestaurantes()
                 }
                 if (userProfile == null) {
                     userProfile = LocalCacheManager.getUserProfileOffline()
@@ -137,8 +182,8 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
             }
         } else {
             if (restaurantes.isEmpty()) {
-                restaurantes = LocalCacheManager.getRestaurantesOffline() ?: emptyList()
-                Log.w("CletaEats", "Sin conexión, usando caché offline de restaurantes")
+                restaurantes = sqliteHelper.obtenerRestaurantes()
+                Log.w("CletaEats", "Sin conexi├│n, usando cach├® offline de restaurantes")
             }
             if (tarjetasGuardadas.isEmpty()) {
                 tarjetasGuardadas = sqliteHelper.obtenerTarjetas()
@@ -148,26 +193,26 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         isLoading = false
     }
 
-    // ── Combos por restaurante: también cache-first ────────────────────────
-    LaunchedEffect(selectedRestaurant) {
+    // ÔöÇÔöÇ Combos por restaurante: tambi├®n cache-first ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    LaunchedEffect(selectedRestaurant, connectionState) {
         if (selectedRestaurant != null) {
             val restauranteId = selectedRestaurant!!.id
-            val isOnline = context.currentConnectivityState is ConnectionState.Available
+            val isOnline = connectionState is ConnectionState.Available
 
-            // 1. Mostrar caché si existe
-            val cachedCombos = LocalCacheManager.getCombos(restauranteId)
-            if (cachedCombos != null) {
+            // 1. Mostrar cach├® si existe
+            val cachedCombos = sqliteHelper.obtenerCombos(restauranteId)
+            if (cachedCombos.isNotEmpty()) {
                 menuCombos = cachedCombos
                 cartItems = emptyList()
                 isMenuLoading = false
-                Log.d("CletaEats", "Combos de restaurante $restauranteId desde caché")
+                Log.d("CletaEats", "Combos de restaurante $restauranteId desde cach├®")
             } else {
                 isMenuLoading = true
                 menuCombos = emptyList()
                 cartItems = emptyList()
             }
 
-            // 2. Actualizar desde el servidor si hay conexión
+            // 2. Actualizar desde el servidor si hay conexi├│n
             if (isOnline) {
                 try {
                     val token = TokenManager.token
@@ -177,21 +222,21 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         if (response.success) {
                             val nuevosCombos = response.data ?: emptyList()
                             menuCombos = nuevosCombos
-                            LocalCacheManager.saveCombos(restauranteId, nuevosCombos) // guardar
+                            sqliteHelper.guardarCombos(restauranteId, nuevosCombos) // guardar
                             Log.d("CletaEats", "Combos de restaurante $restauranteId actualizados")
                         }
                     }
                 } catch (e: Exception) {
                     Log.e("CletaEats", "Error combos desde API: ${e.message}")
-                    // Si falla y no había caché válido, intentar caché vencido
+                    // Si falla y no hab├¡a cach├® v├ílido, intentar cach├® vencido
                     if (menuCombos.isEmpty()) {
-                        menuCombos = LocalCacheManager.getCombosOffline(restauranteId) ?: emptyList()
+                        menuCombos = sqliteHelper.obtenerCombos(restauranteId)
                     }
                 }
             } else if (menuCombos.isEmpty()) {
-                // Sin conexión: intentar con caché vencido
-                menuCombos = LocalCacheManager.getCombosOffline(restauranteId) ?: emptyList()
-                Log.w("CletaEats", "Sin conexión, usando caché offline de combos")
+                // Sin conexi├│n: intentar con cach├® vencido
+                menuCombos = sqliteHelper.obtenerCombos(restauranteId)
+                Log.w("CletaEats", "Sin conexi├│n, usando cach├® offline de combos")
             }
 
             isMenuLoading = false
@@ -207,7 +252,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("🍜 CLETAEATS", fontWeight = FontWeight.Bold, color = Color.White) },
+                    title = { Text("­ƒì£ CLETAEATS", fontWeight = FontWeight.Bold, color = Color.White) },
                     actions = { IconButton(onClick = onLogout) { Icon(Icons.Default.Logout, "Logout", tint = Color.White) } },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = BrownDark)
                 )
@@ -216,7 +261,13 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                 ClienteBottomBar(activeTab = activeTab, onTabSelect = { tab -> activeTab = tab; selectedRestaurant = null })
             }
         ) { paddingValues ->
-            Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                ConnectionStatusBanner(networkOnline)
+                Box(modifier = Modifier.fillMaxSize()) {
                 if (isLoading) {
                     Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator(color = BrownDark) }
                 } else if (selectedRestaurant != null) {
@@ -249,9 +300,27 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         ActiveTab.PERFIL -> ClientePerfilTab(
                             tarjetas = tarjetasGuardadas,
                             userProfile = userProfile,
-                            onAddCardClick = { showPaymentDialog = true }
+                            onAddCardClick = { showPaymentDialog = true },
+                            onDeleteCard = { id ->
+                                coroutineScope.launch {
+                                    try {
+                                        val t = TokenManager.token ?: return@launch
+                                        val resp = CletaApi.retrofitService.deleteTarjeta("Bearer $t", id)
+                                        if (resp.success) {
+                                            tarjetasGuardadas = tarjetasGuardadas.filter { it.id != id }
+                                            sqliteHelper.eliminarTarjeta(id)
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e("CletaEats", "Error borrando tarjeta: ${e.message}")
+                                        tarjetasGuardadas = tarjetasGuardadas.filter { it.id != id }
+                                        sqliteHelper.eliminarTarjeta(id)
+                                        com.cletaeats.database.SyncManager.guardarAccionPendiente("DELETE_CARD", id.toString())
+                                    }
+                                }
+                            }
                         )
                     }
+                }
                 }
             }
         }
@@ -275,7 +344,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         )
     }
 
-    if (showPaymentDialog && cartItems.isNotEmpty() && selectedRestaurant != null) {
+    if (showPaymentDialog && (cartItems.isNotEmpty() && selectedRestaurant != null && activeTab == ActiveTab.INICIO)) {
         PaymentDialog(
             isSubmitting = isSubmittingOrder, tarjetas = tarjetasGuardadas,
             onDismiss = { showPaymentDialog = false },
@@ -287,8 +356,19 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         if (resp.success && resp.data != null) {
                             tarjetasGuardadas = tarjetasGuardadas + resp.data
                             sqliteHelper.guardarTarjetas(tarjetasGuardadas)
+                        } else {
+                            tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
+                            sqliteHelper.guardarTarjetas(tarjetasGuardadas)
+                            val json = com.google.gson.Gson().toJson(nuevaTarjeta)
+                            com.cletaeats.database.SyncManager.guardarAccionPendiente("SAVE_CARD", json)
                         }
-                    } catch (e: Exception) { Log.e("CletaEats", "Error guardando tarjeta: ${e.message}") }
+                    } catch (e: Exception) {
+                        Log.e("CletaEats", "Error guardando tarjeta: ${e.message}")
+                        tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
+                        sqliteHelper.guardarTarjetas(tarjetasGuardadas)
+                        val json = com.google.gson.Gson().toJson(nuevaTarjeta)
+                        com.cletaeats.database.SyncManager.guardarAccionPendiente("SAVE_CARD", json)
+                    }
                 }
             },
             onConfirm = { numeroTarjetaFinal ->
@@ -307,14 +387,44 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             refreshData()
                             showOrderTracking = true
                             cartItems = emptyList()
+                        } else {
+                            throw Exception("Fallback to local")
                         }
-                    } catch (e: Exception) { Log.e("CletaEats", "Error confirmación pedido: ${e.message}") } finally { isSubmittingOrder = false }
+                    } catch (e: Exception) {
+                        Log.e("CletaEats", "Error confirmación pedido: ${e.message}")
+                        val localOrderId = (1000..9999).random()
+                        try {
+                            val request = OrderUtils.createPayload(selectedRestaurant!!.id, cartItems, numeroTarjetaFinal)
+                            val gson = com.google.gson.Gson()
+                            val pendingPayload = PendingCreateOrderPayload(localOrderId = localOrderId, request = request)
+                            com.cletaeats.database.SyncManager.guardarAccionPendiente(
+                                "CREATE_ORDER",
+                                gson.toJson(pendingPayload)
+                            )
+                        } catch (ex: Exception) {
+                            Log.e("CletaEats", "Error serializando pedido offline: ${ex.message}")
+                        }
+
+                        val totalCost = cartItems.sumOf { (it.combo.precio + if (it.agrandado) 1500.0 else 0.0) * it.cantidad }
+                        val localOrder = PedidoItem(
+                            id = localOrderId,
+                            restauranteNombre = selectedRestaurant?.nombre ?: "Restaurante",
+                            total = totalCost + (totalCost * 0.13) + 1500.0,
+                            estado = "pendiente"
+                        )
+                        sqliteHelper.guardarPedidos(sqliteHelper.obtenerPedidos() + localOrder)
+                        latestCreatedOrder = localOrder
+                        showPaymentDialog = false
+                        refreshData()
+                        showOrderTracking = true
+                        cartItems = emptyList()
+                    } finally { isSubmittingOrder = false }
                 }
             }
         )
     }
 
-    if (showPaymentDialog && cartItems.isEmpty()) {
+    if (showPaymentDialog && (cartItems.isEmpty() || activeTab == ActiveTab.PERFIL)) {
         PaymentDialog(
             isSubmitting = false, tarjetas = tarjetasGuardadas,
             onDismiss = { showPaymentDialog = false },
@@ -327,8 +437,21 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             tarjetasGuardadas = tarjetasGuardadas + resp.data
                             sqliteHelper.guardarTarjetas(tarjetasGuardadas)
                             showPaymentDialog = false
+                        } else {
+                            tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
+                            sqliteHelper.guardarTarjetas(tarjetasGuardadas)
+                            val json = com.google.gson.Gson().toJson(nuevaTarjeta)
+                            com.cletaeats.database.SyncManager.guardarAccionPendiente("SAVE_CARD", json)
+                            showPaymentDialog = false
                         }
-                    } catch (e: Exception) { Log.e("CletaEats", "Error tarjeta perfil: ${e.message}") }
+                    } catch (e: Exception) {
+                        Log.e("CletaEats", "Error tarjeta perfil: ${e.message}")
+                        tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
+                        sqliteHelper.guardarTarjetas(tarjetasGuardadas)
+                        val json = com.google.gson.Gson().toJson(nuevaTarjeta)
+                        com.cletaeats.database.SyncManager.guardarAccionPendiente("SAVE_CARD", json)
+                        showPaymentDialog = false
+                    }
                 }
             },
             onConfirm = { showPaymentDialog = false }

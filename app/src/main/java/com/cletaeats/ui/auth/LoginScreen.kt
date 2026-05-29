@@ -2,6 +2,8 @@ package com.cletaeats.ui.auth
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -19,6 +21,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cletaeats.R
 import com.cletaeats.ui.theme.*
 import com.cletaeats.network.CletaApi
 import com.cletaeats.network.LoginRequest
@@ -44,13 +47,12 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(
-            text = "🍜 CletaEats",
-            style = MaterialTheme.typography.displayLarge.copy(
-                color = BrownDark,
-                fontSize = 32.sp
-            ),
-            modifier = Modifier.padding(bottom = 24.dp)
+        Image(
+            painter = painterResource(id = R.drawable.cletaeats_logo),
+            contentDescription = "CletaEats Logo",
+            modifier = Modifier
+                .size(120.dp)
+                .padding(bottom = 24.dp)
         )
 
         // Selector de roles (Cliente vs Repartidor)
@@ -130,12 +132,21 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {
                             val response = CletaApi.retrofitService.login(LoginRequest(username, password))
                             if (response.success) {
                                 val token = response.token ?: response.data?.token
+                                val actualRol = response.rol ?: response.data?.rol ?: "cliente"
+
+                                if (actualRol.equals("repartidor", ignoreCase = true) && rol == "cliente") {
+                                    errorMessage = "Debe registrarse como cliente."
+                                    showError = true
+                                    isLoading = false
+                                    return@launch
+                                }
+
                                 if (token != null) {
                                     // Guardar sesión de forma persistente en disco
                                     SessionManager.saveSession(
                                         token    = token,
                                         username = username,
-                                        rol      = rol
+                                        rol      = if (actualRol.equals("admin", ignoreCase = true)) "admin" else rol
                                     )
                                     onLoginSuccess()
                                 } else {

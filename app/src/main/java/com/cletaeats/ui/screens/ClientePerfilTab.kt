@@ -9,12 +9,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,8 +32,10 @@ import com.cletaeats.ui.theme.*
 fun ClientePerfilTab(
     tarjetas: List<MetodoPago>,
     userProfile: UserProfile?,
-    onAddCardClick: () -> Unit
+    onAddCardClick: () -> Unit,
+    onDeleteCard: (Int) -> Unit
 ) {
+    var showDeleteConfirmDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<MetodoPago?>(null) }
     val username = SessionManager.username ?: "Usuario"
     val rol      = SessionManager.rol ?: "cliente"
     val initials = (userProfile?.nombre ?: username).take(1).uppercase()
@@ -229,6 +232,10 @@ fun ClientePerfilTab(
                                                 color = TextMid
                                             )
                                         }
+                                        Spacer(Modifier.weight(1f))
+                                        IconButton(onClick = { showDeleteConfirmDialog = tarjeta }) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
+                                        }
                                     }
                                 }
                             }
@@ -239,6 +246,27 @@ fun ClientePerfilTab(
         }
 
         item { Spacer(Modifier.height(80.dp)) }
+    }
+
+    if (showDeleteConfirmDialog != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = null },
+            title = { Text("Eliminar Tarjeta") },
+            text = { Text("¿Deseas eliminar la tarjeta terminada en ${showDeleteConfirmDialog?.numeroTarjeta?.takeLast(4)}?") },
+            confirmButton = {
+                TextButton(onClick = { 
+                    showDeleteConfirmDialog?.id?.let { onDeleteCard(it) }
+                    showDeleteConfirmDialog = null 
+                }) {
+                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
 

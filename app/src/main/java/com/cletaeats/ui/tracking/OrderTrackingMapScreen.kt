@@ -1,5 +1,6 @@
 package com.cletaeats.ui.tracking
 
+import org.osmdroid.config.Configuration as OSMConfiguration
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -14,10 +15,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.cletaeats.ui.theme.*
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,33 +51,31 @@ fun OrderTrackingMapScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Brush.verticalGradient(colors = listOf(Cream, CreamDark)))
         ) {
-            // Elegant premium graphic placeholder (replaces Leaflet Webview)
-            Column(
-                modifier = Modifier.fillMaxSize().padding(bottom = 240.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Surface(
-                    modifier = Modifier.size(130.dp),
-                    shape = RoundedCornerShape(65.dp),
-                    color = OrangeSoft.copy(alpha = 0.15f),
-                    border = BorderStroke(2.dp, OrangeSoft)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.DirectionsBike,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = BrownDark
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(20.dp))
-                Text("¡Tu cleta va volando!", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = BrownDark)
-                Text("Preparando y enviando con amor", fontSize = 14.sp, color = TextMid)
+            val context = LocalContext.current
+            
+            // Inicializar la configuración de OSMdroid
+            LaunchedEffect(Unit) {
+                OSMConfiguration.getInstance().userAgentValue = context.packageName
             }
+
+            AndroidView(
+                factory = { ctx ->
+                    MapView(ctx).apply {
+                        setTileSource(TileSourceFactory.MAPNIK)
+                        setMultiTouchControls(true)
+                        
+                        // Coordenadas fijas por ahora: Campus Benjamín Núñez (aprox)
+                        val startPoint = GeoPoint(9.9750, -84.1250)
+                        controller.setZoom(15.0)
+                        controller.setCenter(startPoint)
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+                update = { mapView ->
+                    mapView.onResume()
+                }
+            )
 
             // Details bottom card
             OrderTrackingDetailsCard(

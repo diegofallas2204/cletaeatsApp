@@ -4,7 +4,8 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@drawable/cletaeats_logo"
+        android:roundIcon="@drawable/cletaeats_logo"
         android:label="CletaEats"
         android:theme="@style/Theme.CletaEats"
         android:usesCleartextTraffic="true"> <!-- Necesario para conectar a http://localhost:8080 -->

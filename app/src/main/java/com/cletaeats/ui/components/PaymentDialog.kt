@@ -150,6 +150,9 @@ fun PaymentDialog(
                                 onSaveCard(nueva)
                                 selectedValue = num
                                 showForm = false
+                                num = ""
+                                exp = ""
+                                cvv = ""
                             }
                         },
                         enabled = isFormValid,
