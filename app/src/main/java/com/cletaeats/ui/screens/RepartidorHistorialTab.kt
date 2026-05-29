@@ -30,18 +30,10 @@ enum class RepartidorFilterStatus {
 fun RepartidorHistorialTab(
     pedidos: List<PedidoItem>,
     isSubmitting: Boolean,
-    onUpdateStatus: (PedidoItem, String) -> Unit
+    onUpdateStatus: (PedidoItem, String) -> Unit,
+    onPedidoSelect: (PedidoItem) -> Unit
 ) {
     var filterStatus by remember { mutableStateOf(RepartidorFilterStatus.ACTIVOS) }
-    var selectedActivo by remember { mutableStateOf<PedidoItem?>(null) }
-
-    LaunchedEffect(filterStatus, pedidos) {
-        if (filterStatus != RepartidorFilterStatus.ACTIVOS) {
-            selectedActivo = null
-        } else if (selectedActivo != null && pedidos.none { it.id == selectedActivo?.id }) {
-            selectedActivo = null
-        }
-    }
 
     fun normalizeStatus(estado: String?): String {
         val rawStatus = estado ?: "pendiente"
@@ -110,71 +102,51 @@ fun RepartidorHistorialTab(
         }
 
         if (filterStatus == RepartidorFilterStatus.ACTIVOS) {
-            if (selectedActivo == null) {
-                if (filteredPedidos.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize().weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.DirectionsBike, null, tint = BrownLight, modifier = Modifier.size(56.dp))
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text("Sin entregas activas", fontWeight = FontWeight.Bold, color = TextDark, fontSize = 18.sp)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                "Ve a la pestaña de 'Inicio' para aceptar tu próximo pedido.",
-                                color = TextMid,
-                                fontSize = 14.sp,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-                        }
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize().weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(filteredPedidos) { pedido ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
-                                shape = RoundedCornerShape(12.dp),
-                                onClick = { selectedActivo = pedido }
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(pedido.restauranteNombre ?: "Restaurante", fontWeight = FontWeight.Bold, color = TextDark)
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text("Pedido #${pedido.id}", color = TextMid, fontSize = 12.sp)
-                                    }
-                                    Text("Ver mapa", color = OrangeSoft, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                }
-                            }
-                        }
+            if (filteredPedidos.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize().weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.DirectionsBike, null, tint = BrownLight, modifier = Modifier.size(56.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Sin entregas activas", fontWeight = FontWeight.Bold, color = TextDark, fontSize = 18.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Ve a la pestaña de 'Inicio' para aceptar tu próximo pedido.",
+                            color = TextMid,
+                            fontSize = 14.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                     }
                 }
             } else {
-                Column(modifier = Modifier.fillMaxSize().weight(1f)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = { selectedActivo = null }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Volver", tint = BrownDark)
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(filteredPedidos) { pedido ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(12.dp),
+                            onClick = { onPedidoSelect(pedido) }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(pedido.restauranteNombre ?: "Restaurante", fontWeight = FontWeight.Bold, color = TextDark)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("Pedido #${pedido.id}", color = TextMid, fontSize = 12.sp)
+                                }
+                                Text("Ver mapa", color = OrangeSoft, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
                         }
-                        Column(modifier = Modifier.padding(end = 8.dp)) {
-                            Text("Pedido aceptado", fontWeight = FontWeight.Bold, color = BrownDark)
-                            Text("Toca Entregado al finalizar", color = TextMid, fontSize = 12.sp)
-                        }
-                    }
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        RepartidorActivoContent(selectedActivo!!, isSubmitting, onUpdateStatus)
                     }
                 }
             }

@@ -16,15 +16,18 @@ import com.cletaeats.ui.components.RepartidorActiveTab
 import com.cletaeats.ui.components.RepartidorBottomBar
 import com.cletaeats.ui.theme.BrownDark
 import com.cletaeats.ui.theme.Cream
+import com.cletaeats.ui.tracking.RepartidorTrackingMapScreen
 import com.cletaeats.utils.ConnectionState
 import com.cletaeats.utils.connectivityState
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import com.cletaeats.utils.PedidoMergeUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RepartidorHomeScreen(onLogout: () -> Unit) {
     var activeTab by remember { mutableStateOf(RepartidorActiveTab.INICIO) }
+    var pedidoSeleccionado by remember { mutableStateOf<PedidoItem?>(null) }
     var pedidos by remember { mutableStateOf<List<PedidoItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var isRefreshing by remember { mutableStateOf(false) }
@@ -61,44 +64,15 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                 }
                 
                 // Unificamos la lista evitando duplicados por ID
-                val combined = (mios + disp).distinctBy { it.id }
                 val restaurantes = sqliteHelper.obtenerRestaurantes()
                 val localPedidos = sqliteHelper.obtenerPedidos()
+                val combined = (mios + disp).distinctBy { it.id }
 
-                val localById = localPedidos.associateBy { it.id }
-
-                pedidos = combined.map { pedido ->
-                    val local = localById[pedido.id]
-                    if (local != null) {
-                        val mergedStatus = when (local.estado?.lowercase()) {
-                            "aceptado", "en_camino", "preparando", "entregado", "cancelado" -> local.estado
-                            else -> pedido.estado
-                        }
-                        val restauranteNombre = when {
-                            !local.restauranteNombre.isNullOrBlank() -> local.restauranteNombre
-                            (!pedido.restauranteNombre.isNullOrEmpty() && pedido.restauranteNombre != "Restaurante") -> pedido.restauranteNombre
-                            pedido.restauranteId != null -> restaurantes.find { it.id == pedido.restauranteId }?.nombre ?: "Restaurante"
-                            else -> "Restaurante"
-                        }
-                        pedido.copy(
-                            restauranteNombre = restauranteNombre,
-                            estado = mergedStatus
-                        )
-                    } else {
-                        pedido
-                    }
-                }
-
-                val mergedWithLocalOnly = (pedidos + localPedidos)
-                    .distinctBy { it.id }
-                    .map { pedido ->
-                        val restauranteNombre = when {
-                            !pedido.restauranteNombre.isNullOrBlank() && pedido.restauranteNombre != "Restaurante" -> pedido.restauranteNombre
-                            pedido.restauranteId != null -> restaurantes.find { it.id == pedido.restauranteId }?.nombre ?: "Restaurante"
-                            else -> "Restaurante"
-                        }
-                        pedido.copy(restauranteNombre = restauranteNombre)
-                    }
+                val mergedWithLocalOnly = PedidoMergeUtils.mergeWithLocalCache(
+                    serverPedidos = combined,
+                    localPedidos = localPedidos,
+                    restaurantes = restaurantes
+                )
 
                 // Persistir la lista combinada en caché local para mantener estado offline
                 try {
@@ -110,6 +84,7 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                 pedidos = mergedWithLocalOnly
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error crítico en refreshData: ${e.message}")
+                pedidos = sqliteHelper.obtenerPedidos()
             } finally {
                 isLoading = false
                 isRefreshing = false
@@ -154,6 +129,10 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                 val updateReq = com.cletaeats.database.UpdateStatusPayload(pedido.id, nuevoEstado)
                 val jsonUpdate = com.google.gson.Gson().toJson(updateReq)
                 com.cletaeats.database.SyncManager.guardarAccionPendiente("UPDATE_ORDER_STATUS", jsonUpdate)
+                val actualizados = sqliteHelper.obtenerPedidos().map {
+                    if (it.id == pedido.id) it.copy(estado = nuevoEstado) else it
+                }
+                sqliteHelper.guardarPedidos(actualizados)
                 pedidos = pedidos.map { if (it.id == pedido.id) it.copy(estado = nuevoEstado) else it }
             } finally {
                 isSubmittingStatus = false
@@ -213,59 +192,72 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("🛵 CLETAEATS - REPARTIDOR", fontWeight = FontWeight.Bold, color = Color.White) },
-                actions = {
-                    IconButton(onClick = onLogout) {
-                        Icon(Icons.Default.Logout, "Logout", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = BrownDark)
-            )
-        },
-        bottomBar = {
-            RepartidorBottomBar(
-                activeTab = activeTab,
-                onTabSelect = { activeTab = it }
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            ConnectionStatusBanner(networkOnline)
-            Box(
+    if (pedidoSeleccionado != null) {
+        RepartidorTrackingMapScreen(
+            pedido = pedidoSeleccionado!!,
+            isSubmitting = isSubmittingStatus,
+            onBack = {
+                pedidoSeleccionado = null
+                activeTab = RepartidorActiveTab.HISTORIAL
+            },
+            onUpdateStatus = { ped, est -> updateStatus(ped, est) }
+        )
+    } else {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("🛵 CLETAEATS - REPARTIDOR", fontWeight = FontWeight.Bold, color = Color.White) },
+                    actions = {
+                        IconButton(onClick = onLogout) {
+                            Icon(Icons.Default.Logout, "Logout", tint = Color.White)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = BrownDark)
+                )
+            },
+            bottomBar = {
+                RepartidorBottomBar(
+                    activeTab = activeTab,
+                    onTabSelect = { activeTab = it }
+                )
+            }
+        ) { paddingValues ->
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(paddingValues)
             ) {
-            if (isLoading) {
-                Box(Modifier.fillMaxSize(), Alignment.Center) {
-                    CircularProgressIndicator(color = BrownDark)
+                ConnectionStatusBanner(networkOnline)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                ) {
+                    if (isLoading) {
+                        Box(Modifier.fillMaxSize(), Alignment.Center) {
+                            CircularProgressIndicator(color = BrownDark)
+                        }
+                    } else {
+                        when (activeTab) {
+                            RepartidorActiveTab.INICIO -> RepartidorInicioTab(
+                                pedidos = pedidos,
+                                isRefreshing = isRefreshing,
+                                onAcceptOrder = { acceptOrder(it) },
+                                onRefresh = { isRefreshing = true; refreshData() }
+                            )
+                            RepartidorActiveTab.HISTORIAL -> RepartidorHistorialTab(
+                                pedidos = pedidos,
+                                isSubmitting = isSubmittingStatus,
+                                onUpdateStatus = { ped, est -> updateStatus(ped, est) },
+                                onPedidoSelect = { pedido: PedidoItem -> pedidoSeleccionado = pedido }
+                            )
+                            RepartidorActiveTab.PERFIL -> RepartidorPerfilTab(
+                                pedidos = pedidos,
+                                isOnline = isOnline,
+                                onOnlineToggle = { isOnline = it }
+                            )
+                        }
+                    }
                 }
-            } else {
-                when (activeTab) {
-                    RepartidorActiveTab.INICIO -> RepartidorInicioTab(
-                        pedidos = pedidos,
-                        isRefreshing = isRefreshing,
-                        onAcceptOrder = { acceptOrder(it) },
-                        onRefresh = { isRefreshing = true; refreshData() }
-                    )
-                    RepartidorActiveTab.HISTORIAL -> RepartidorHistorialTab(
-                        pedidos = pedidos,
-                        isSubmitting = isSubmittingStatus,
-                        onUpdateStatus = { ped, est -> updateStatus(ped, est) }
-                    )
-                    RepartidorActiveTab.PERFIL -> RepartidorPerfilTab(
-                        pedidos = pedidos,
-                        isOnline = isOnline,
-                        onOnlineToggle = { isOnline = it }
-                    )
-                }
-            }
             }
         }
     }

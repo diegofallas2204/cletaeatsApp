@@ -39,7 +39,7 @@ class TrackingViewModel(val pedido: PedidoItem) : ViewModel() {
                     cancellationState = CancellationState.Error(response.error ?: "Error al cancelar")
                 }
             } catch (e: Exception) {
-                com.cletaeats.database.SyncManager.guardarAccionPendiente("CANCEL_ORDER", pedido.id.toString())
+                com.cletaeats.database.SyncManager.handleOfflineCancel(pedido.id)
                 cancellationState = CancellationState.Success("Cancelación guardada localmente (sin conexión)")
                 onDone()
             }

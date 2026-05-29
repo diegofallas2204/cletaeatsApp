@@ -17,6 +17,7 @@ import com.cletaeats.ui.theme.*
 import com.cletaeats.ui.tracking.*
 import com.cletaeats.utils.LocalCacheManager
 import com.cletaeats.utils.OrderUtils
+import com.cletaeats.utils.PedidoMergeUtils
 import com.cletaeats.utils.currentConnectivityState
 import com.cletaeats.utils.connectivityState
 import com.cletaeats.utils.ConnectionState
@@ -52,32 +53,42 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
     var latestCreatedOrder by remember { mutableStateOf<PedidoItem?>(null) }
 
     val connectionState by connectivityState()
+    val networkOnline = connectionState is ConnectionState.Available
 
     fun refreshData() {
         coroutineScope.launch {
             try {
                 val t = TokenManager.token ?: return@launch
-                val response = CletaApi.retrofitService.getClienteHistorial("Bearer $t")
-                if (response.success) {
-                    val nuevosPedidos = response.data ?: emptyList()
-                    val restaurantesLocales = sqliteHelper.obtenerRestaurantes()
-                    val pedidosActualizados = nuevosPedidos.map { pedido ->
-                        if ((pedido.restauranteNombre.isNullOrEmpty() || pedido.restauranteNombre == "Restaurante") && pedido.restauranteId != null) {
-                            val rName = restaurantesLocales.find { it.id == pedido.restauranteId }?.nombre
-                            pedido.copy(restauranteNombre = rName ?: "Restaurante")
-                        } else {
-                            pedido
-                        }
+                val restaurantesLocales = sqliteHelper.obtenerRestaurantes()
+                val localPedidos = sqliteHelper.obtenerPedidos()
+
+                var serverPedidos: List<PedidoItem> = emptyList()
+                try {
+                    val response = CletaApi.retrofitService.getClienteHistorial("Bearer $t")
+                    if (response.success) {
+                        serverPedidos = response.data ?: emptyList()
                     }
-                    historial = pedidosActualizados
-                    sqliteHelper.guardarPedidos(pedidosActualizados)
-                } else {
-                    historial = sqliteHelper.obtenerPedidos()
+                } catch (e: Exception) {
+                    Log.e("CletaEats", "Error cargando historial desde API: ${e.message}")
                 }
+
+                val merged = if (serverPedidos.isNotEmpty()) {
+                    PedidoMergeUtils.mergeWithLocalCache(serverPedidos, localPedidos, restaurantesLocales)
+                } else {
+                    localPedidos
+                }
+                historial = merged
+                sqliteHelper.guardarPedidos(merged)
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error cargando historial: ${e.message}")
                 historial = sqliteHelper.obtenerPedidos()
             }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        com.cletaeats.database.SyncManager.syncCompleted.collect {
+            refreshData()
         }
     }
 
@@ -250,7 +261,13 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                 ClienteBottomBar(activeTab = activeTab, onTabSelect = { tab -> activeTab = tab; selectedRestaurant = null })
             }
         ) { paddingValues ->
-            Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                ConnectionStatusBanner(networkOnline)
+                Box(modifier = Modifier.fillMaxSize()) {
                 if (isLoading) {
                     Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator(color = BrownDark) }
                 } else if (selectedRestaurant != null) {
@@ -303,6 +320,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             }
                         )
                     }
+                }
                 }
             }
         }
@@ -373,19 +391,23 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             throw Exception("Fallback to local")
                         }
                     } catch (e: Exception) {
-                        Log.e("CletaEats", "Error confirmaci├│n pedido: ${e.message}")
+                        Log.e("CletaEats", "Error confirmación pedido: ${e.message}")
+                        val localOrderId = (1000..9999).random()
                         try {
                             val request = OrderUtils.createPayload(selectedRestaurant!!.id, cartItems, numeroTarjetaFinal)
                             val gson = com.google.gson.Gson()
-                            val jsonPayload = gson.toJson(request)
-                            com.cletaeats.database.SyncManager.guardarAccionPendiente("CREATE_ORDER", jsonPayload)
+                            val pendingPayload = PendingCreateOrderPayload(localOrderId = localOrderId, request = request)
+                            com.cletaeats.database.SyncManager.guardarAccionPendiente(
+                                "CREATE_ORDER",
+                                gson.toJson(pendingPayload)
+                            )
                         } catch (ex: Exception) {
                             Log.e("CletaEats", "Error serializando pedido offline: ${ex.message}")
                         }
 
                         val totalCost = cartItems.sumOf { (it.combo.precio + if (it.agrandado) 1500.0 else 0.0) * it.cantidad }
                         val localOrder = PedidoItem(
-                            id = (1000..9999).random(),
+                            id = localOrderId,
                             restauranteNombre = selectedRestaurant?.nombre ?: "Restaurante",
                             total = totalCost + (totalCost * 0.13) + 1500.0,
                             estado = "pendiente"

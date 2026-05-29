@@ -260,6 +260,28 @@ class CletaSQLiteHelper(context: Context) :
         guardarPedidos(actualizados)
     }
 
+    fun remapOrderIdInPendingActions(oldId: Int, newId: Int) {
+        val acciones = obtenerAccionesPendientes()
+        acciones.forEach { accion ->
+            val updatedPayload = when (accion.tipo) {
+                "CANCEL_ORDER", "ASSIGN_ORDER" -> {
+                    if (accion.payload.toIntOrNull() == oldId) newId.toString() else accion.payload
+                }
+                "UPDATE_ORDER_STATUS" -> {
+                    accion.payload.replace("\"orderId\":$oldId", "\"orderId\":$newId")
+                        .replace("\"orderId\": $oldId", "\"orderId\": $newId")
+                }
+                else -> accion.payload
+            }
+            if (updatedPayload != accion.payload) {
+                val db = writableDatabase
+                val values = ContentValues().apply { put("payload", updatedPayload) }
+                db.update(TABLE_PENDING_ACTIONS, values, "id = ?", arrayOf(accion.id.toString()))
+                android.util.Log.d("CletaEats", "Payload remapeado en acción ${accion.tipo}: $oldId -> $newId")
+            }
+        }
+    }
+
     fun obtenerPedidos(): List<PedidoItem> {
         val lista = mutableListOf<PedidoItem>()
         try {
