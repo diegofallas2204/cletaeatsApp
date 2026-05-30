@@ -29,6 +29,7 @@ fun ClienteHistorialTab(
     historial: List<PedidoItem>,
     onTrackClick: (PedidoItem) -> Unit,
     onCancelClick: (PedidoItem) -> Unit,
+    onRateClick: (PedidoItem) -> Unit = {},
     filterStatus: OrderFilterStatus = OrderFilterStatus.ACTIVOS,
     onFilterChange: (OrderFilterStatus) -> Unit = {}
 ) {
@@ -119,7 +120,10 @@ fun ClienteHistorialTab(
                     OrderCard(
                         pedido = pedido,
                         onTrackClick = { onTrackClick(pedido) },
-                        onCancelClick = { onCancelClick(pedido) }
+                        onCancelClick = { onCancelClick(pedido) },
+                        onRateClick = if ((pedido.estado ?: "").lowercase() == "entregado") {
+                            { onRateClick(pedido) }
+                        } else null
                     )
                 }
                 item { Spacer(Modifier.height(80.dp)) }

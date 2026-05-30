@@ -77,8 +77,8 @@ private fun RepartidorTrackingDetailsCard(
     isSubmitting: Boolean,
     onUpdateStatus: (PedidoItem, String) -> Unit
 ) {
-    val estado = activo.estado?.lowercase() ?: "pendiente"
-    val esEnCamino = estado.contains("camino")
+    val estado = activo.estado?.lowercase() ?: "preparacion"
+    val esEnCamino = estado == "camino" || estado == "en_camino" || estado.contains("en camino")
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -141,7 +141,7 @@ private fun RepartidorTrackingDetailsCard(
             Button(
                 onClick = {
                     if (esEnCamino) onUpdateStatus(activo, "entregado")
-                    else onUpdateStatus(activo, "en_camino")
+                    else onUpdateStatus(activo, "camino")
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = if (esEnCamino) GreenAccent else OrangeSoft),

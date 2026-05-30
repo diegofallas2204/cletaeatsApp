@@ -158,3 +158,8 @@ data class OrderItem(
 data class UpdateStatusRequest(
     val estado: String
 )
+
+data class ValoracionRequest(
+    val rating: Int,
+    val comentario: String? = null
+)

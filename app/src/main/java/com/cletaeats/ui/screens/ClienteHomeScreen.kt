@@ -51,6 +51,8 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
     var orderToTrack by remember { mutableStateOf<PedidoItem?>(null) }
     var orderToCancel by remember { mutableStateOf<PedidoItem?>(null) }
     var latestCreatedOrder by remember { mutableStateOf<PedidoItem?>(null) }
+    var pedidoAValorar by remember { mutableStateOf<PedidoItem?>(null) }
+    var isSubmittingRating by remember { mutableStateOf(false) }
 
     val connectionState by connectivityState()
     val networkOnline = connectionState is ConnectionState.Available
@@ -290,6 +292,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             historial = historial,
                             onTrackClick = { orderToTrack = it },
                             onCancelClick = { orderToCancel = it },
+                            onRateClick = { pedidoAValorar = it },
                             filterStatus = historialFilterStatus,
                             onFilterChange = { historialFilterStatus = it }
                         )
@@ -464,6 +467,34 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
             order = orderToCancel!!,
             onDismiss = { orderToCancel = null },
             onConfirm = { orderToCancel = null; trackingVm.cancelOrder { refreshData() } }
+        )
+    }
+
+    if (pedidoAValorar != null) {
+        RatingDialog(
+            pedidoId = pedidoAValorar!!.id,
+            isSubmitting = isSubmittingRating,
+            onDismiss = { pedidoAValorar = null },
+            onConfirm = { rating, comentario ->
+                coroutineScope.launch {
+                    isSubmittingRating = true
+                    try {
+                        val t = TokenManager.token ?: return@launch
+                        val resp = CletaApi.retrofitService.valorarPedido(
+                            "Bearer $t",
+                            pedidoAValorar!!.id,
+                            com.cletaeats.network.ValoracionRequest(rating, comentario.ifBlank { null })
+                        )
+                        if (resp.success) {
+                            pedidoAValorar = null
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("CletaEats", "Error enviando valoración: ${e.message}")
+                    } finally {
+                        isSubmittingRating = false
+                    }
+                }
+            }
         )
     }
 }

@@ -51,6 +51,13 @@ interface CletaApiService {
         @Path("id") id: Int
     ): CletaResponse<String>
 
+    @POST("api/cliente/pedidos/{pedidoId}/valorar")
+    suspend fun valorarPedido(
+        @Header("Authorization") token: String,
+        @Path("pedidoId") pedidoId: Int,
+        @Body request: ValoracionRequest
+    ): CletaResponse<String>
+
     @PUT("api/cliente/pedidos/{pedidoId}/cancelar")
     suspend fun cancelarPedido(
         @Header("Authorization") token: String,

@@ -5,7 +5,7 @@ import com.cletaeats.network.PedidoItem
 object RepartidorOrderUtils {
 
     private val ACTIVE_STATUSES = setOf(
-        "aceptado", "en_camino", "en camino", "preparando", "preparacion"
+        "aceptado", "camino", "en_camino", "en camino", "preparando", "preparacion"
     )
 
     fun hasActiveOrder(pedidos: List<PedidoItem>): Boolean =

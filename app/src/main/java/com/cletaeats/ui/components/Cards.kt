@@ -20,6 +20,23 @@ import com.cletaeats.network.PedidoItem
 import com.cletaeats.network.RestauranteItem
 import com.cletaeats.ui.theme.*
 
+private fun displayEstado(estado: String?): String = when ((estado ?: "preparacion").lowercase()) {
+    "preparacion" -> "En Preparación"
+    "aceptado"    -> "Aceptado"
+    "camino", "en_camino", "en camino" -> "En Camino"
+    "entregado"   -> "Entregado"
+    "suspendido", "cancelado" -> "Cancelado"
+    else          -> (estado ?: "pendiente").replaceFirstChar { it.uppercase() }
+}
+
+private fun colorEstado(estado: String?): Color = when ((estado ?: "preparacion").lowercase()) {
+    "entregado"   -> GreenAccent
+    "suspendido", "cancelado" -> Color.Red
+    "camino", "en_camino", "en camino" -> OrangeSoft
+    "aceptado", "preparacion" -> BrownMid
+    else          -> Color.Gray
+}
+
 fun getCategoryIcon(tipoComida: String?): ImageVector {
 
     if (tipoComida == null) return Icons.Default.Fastfood
@@ -160,117 +177,62 @@ fun RestaurantGridItem(
 fun OrderCard(
     pedido: PedidoItem,
     onTrackClick: () -> Unit = {},
-    onCancelClick: () -> Unit = {}
+    onCancelClick: () -> Unit = {},
+    onRateClick: (() -> Unit)? = null
 ) {
+    val estado = (pedido.estado ?: "preparacion").lowercase()
+    val esEntregado = estado == "entregado"
+    val esCancelado = estado == "suspendido" || estado == "cancelado"
+    val esCancelable = !esEntregado && !esCancelado
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onTrackClick() },
-
+        modifier = Modifier.fillMaxWidth().clickable { if (!esEntregado) onTrackClick() },
         shape = RoundedCornerShape(16.dp),
-
-        colors = CardDefaults.cardColors(
-            containerColor = WhiteCard
-        ),
-
+        colors = CardDefaults.cardColors(containerColor = WhiteCard),
         border = BorderStroke(1.dp, CreamDark)
     ) {
-
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-
-            Icon(
-                imageVector = Icons.Default.ShoppingCart,
-                contentDescription = "Pedido",
-                tint = BrownDark,
-                modifier = Modifier.size(28.dp)
-            )
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 16.dp)
-            ) {
-
-                Text(
-                    text = "Pedido #${pedido.id}",
-                    fontWeight = FontWeight.Bold,
-                    color = BrownDark
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (esEntregado) Icons.Default.CheckCircle else Icons.Default.ShoppingCart,
+                    contentDescription = "Pedido",
+                    tint = if (esEntregado) GreenAccent else BrownDark,
+                    modifier = Modifier.size(28.dp)
                 )
-
-                Text(
-                    text = pedido.restauranteNombre ?: "Restaurante",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextMid
-                )
-
-                val rawStatus = pedido.estado ?: "pendiente"
-
-                val status = if (rawStatus == "suspendido") {
-                    "cancelado"
-                } else {
-                    rawStatus
+                Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
+                    Text("Pedido #${pedido.id}", fontWeight = FontWeight.Bold, color = BrownDark)
+                    Text(pedido.restauranteNombre ?: "Restaurante", style = MaterialTheme.typography.bodySmall, color = TextMid)
+                    Text(
+                        text = displayEstado(pedido.estado),
+                        color = colorEstado(pedido.estado),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
-
-                val statusColor = when (status) {
-                    "entregado" -> GreenAccent
-                    "cancelado" -> Color.Red
-                    "camino" -> OrangeSoft
-                    "preparando" -> BrownMid
-                    else -> Color.Gray
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("₡${pedido.total ?: 0.0}", fontWeight = FontWeight.Bold, color = BrownDark)
+                    if (esCancelable) {
+                        Spacer(Modifier.height(4.dp))
+                        IconButton(onClick = onCancelClick, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Close, "Cancelar", tint = Color.Red, modifier = Modifier.size(16.dp))
+                        }
+                    }
                 }
-
-                Text(
-                    text = "Estado: ${status.uppercase()}",
-                    color = statusColor,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
             }
 
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.Center
-            ) {
-
-                Text(
-                    text = "₡${pedido.total ?: 0.0}",
-                    fontWeight = FontWeight.Bold,
-                    color = BrownDark
-                )
-
-                val rawStatus2 = pedido.estado ?: "pendiente"
-
-                val status = if (rawStatus2 == "suspendido") {
-                    "cancelado"
-                } else {
-                    rawStatus2
-                }
-
-                val isCancelable =
-                    status != "entregado" &&
-                            status != "cancelado"
-
-                if (isCancelable) {
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    IconButton(
-                        onClick = { onCancelClick() },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Cancelar Pedido",
-                            tint = Color.Red,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
+            // Botón de valorar solo para pedidos entregados y si no fue valorado aún
+            if (esEntregado && onRateClick != null) {
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = onRateClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, OrangeSoft)
+                ) {
+                    Icon(Icons.Default.Star, null, tint = OrangeSoft, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Valorar pedido", color = OrangeSoft, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
