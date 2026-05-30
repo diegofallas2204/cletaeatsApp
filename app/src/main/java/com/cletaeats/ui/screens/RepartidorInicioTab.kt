@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.LocalMall
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,19 +27,26 @@ enum class OrderSortOption {
     RECIENTES, PRECIO_MAYOR, PRECIO_MENOR
 }
 
+// Azul para pedido activo
+private val ActiveBlue = Color(0xFF1565C0)
+private val ActiveBlueSoft = Color(0xFFE3F2FD)
+
 @Composable
 fun RepartidorInicioTab(
     pedidos: List<PedidoItem>,
     isRefreshing: Boolean,
+    tieneActivo: Boolean,
+    pedidoActivo: PedidoItem?,
     onAcceptOrder: (PedidoItem) -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onVerActivo: () -> Unit = {}
 ) {
     var sortOption by remember { mutableStateOf(OrderSortOption.RECIENTES) }
 
-    val disponibles = pedidos.filter { 
+    val estadosDisponibles = setOf("preparacion")
+    val disponibles = pedidos.filter {
         val est = it.estado?.lowercase() ?: ""
-        // El backend devuelve "preparacion", "pendiente" o "preparando"
-        est == "pendiente" || est == "preparando" || est == "preparacion"
+        est in estadosDisponibles
     }
 
     val sortedDisponibles = when (sortOption) {
@@ -53,6 +61,61 @@ fun RepartidorInicioTab(
             .background(Cream)
             .padding(16.dp)
     ) {
+        // ── Banner pedido activo ─────────────────────────────────
+        if (tieneActivo && pedidoActivo != null) {
+            val estadoLabel = when (pedidoActivo.estado?.lowercase()) {
+                "aceptado"   -> "Pedido aceptado — ve a retirarlo"
+                "camino", "en_camino" -> "En camino — entrega el pedido"
+                "preparacion", "preparando" -> "Pedido en preparación"
+                else -> "Tienes un pedido activo"
+            }
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 14.dp),
+                colors = CardDefaults.cardColors(containerColor = ActiveBlueSoft),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.DirectionsBike,
+                        contentDescription = null,
+                        tint = ActiveBlue,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Pedido #${pedidoActivo.id} activo",
+                            fontWeight = FontWeight.ExtraBold,
+                            color = ActiveBlue,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = estadoLabel,
+                            color = ActiveBlue.copy(alpha = 0.8f),
+                            fontSize = 12.sp
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onVerActivo,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ActiveBlue),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ActiveBlue),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.LocationOn, null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Ver mapa", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -64,14 +127,17 @@ fun RepartidorInicioTab(
                 fontWeight = FontWeight.Bold,
                 color = BrownDark
             )
-            TextButton(onClick = onRefresh, colors = ButtonDefaults.textButtonColors(contentColor = BrownMid)) {
+            TextButton(
+                onClick = onRefresh,
+                colors = ButtonDefaults.textButtonColors(contentColor = BrownMid)
+            ) {
                 Text(if (isRefreshing) "Actualizando..." else "Actualizar")
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Filtros / Ordenamiento
+        // ── Filtros ──────────────────────────────────────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -87,8 +153,8 @@ fun RepartidorInicioTab(
                         Text(
                             when (option) {
                                 OrderSortOption.RECIENTES -> "Más Recientes"
-                                OrderSortOption.PRECIO_MAYOR -> "Precio: Mayor a Menor"
-                                OrderSortOption.PRECIO_MENOR -> "Precio: Menor a Mayor"
+                                OrderSortOption.PRECIO_MAYOR -> "Precio: Mayor"
+                                OrderSortOption.PRECIO_MENOR -> "Precio: Menor"
                             },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
@@ -108,59 +174,43 @@ fun RepartidorInicioTab(
 
         if (sortedDisponibles.isEmpty()) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f),
+                modifier = Modifier.fillMaxSize().weight(1f),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.DirectionsBike,
-                        contentDescription = null,
-                        modifier = Modifier.size(72.dp),
-                        tint = BrownLight
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Buscando nuevos pedidos...",
-                        fontWeight = FontWeight.Medium,
-                        color = TextMid,
-                        fontSize = 16.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Mantén la app abierta para recibir alertas",
-                        color = TextMid.copy(alpha = 0.7f),
-                        fontSize = 12.sp
-                    )
+                    Icon(Icons.Default.DirectionsBike, null, modifier = Modifier.size(72.dp), tint = BrownLight)
+                    Spacer(Modifier.height(16.dp))
+                    Text("Buscando nuevos pedidos...", fontWeight = FontWeight.Medium, color = TextMid, fontSize = 16.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Mantén la app abierta para recibir alertas", color = TextMid.copy(alpha = 0.7f), fontSize = 12.sp)
                 }
             }
         } else {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f),
+                modifier = Modifier.fillMaxSize().weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(sortedDisponibles) { pedido ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (tieneActivo) Color(0xFFF5F5F5) else Color.White
+                        ),
                         shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = if (tieneActivo) 0.dp else 2.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Restaurant, null, tint = OrangeSoft, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(Icons.Default.Restaurant, null, tint = if (tieneActivo) TextMid else OrangeSoft, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
                                 Text(
                                     text = pedido.restauranteNombre ?: "Restaurante",
                                     fontWeight = FontWeight.Bold,
-                                    color = TextDark,
+                                    color = if (tieneActivo) TextMid else TextDark,
                                     fontSize = 16.sp
                                 )
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(Modifier.height(8.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -169,12 +219,12 @@ fun RepartidorInicioTab(
                                 Text(
                                     text = "CRC ${pedido.total ?: 0.0}",
                                     fontWeight = FontWeight.Bold,
-                                    color = GreenAccent,
+                                    color = if (tieneActivo) TextMid else GreenAccent,
                                     fontSize = 15.sp
                                 )
                             }
                             if (!pedido.notas.isNullOrBlank()) {
-                                Spacer(modifier = Modifier.height(6.dp))
+                                Spacer(Modifier.height(6.dp))
                                 Text(
                                     text = "Notas: ${pedido.notas}",
                                     color = TextMid.copy(alpha = 0.8f),
@@ -184,16 +234,24 @@ fun RepartidorInicioTab(
                                         .padding(horizontal = 6.dp, vertical = 4.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(Modifier.height(12.dp))
                             Button(
                                 onClick = { onAcceptOrder(pedido) },
+                                enabled = !tieneActivo,
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = OrangeSoft),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = OrangeSoft,
+                                    disabledContainerColor = Color(0xFFBDBDBD)
+                                ),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Icon(Icons.Default.LocalMall, null, tint = Color.White)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Aceptar Pedido", fontWeight = FontWeight.Bold, color = Color.White)
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    if (tieneActivo) "Completa tu entrega actual" else "Aceptar Pedido",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
                             }
                         }
                     }

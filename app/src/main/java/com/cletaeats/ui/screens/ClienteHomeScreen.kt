@@ -48,6 +48,25 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
     val context = LocalContext.current
     val sqliteHelper = remember { com.cletaeats.database.CletaSQLiteHelper(context) }
 
+    // Persistencia de valoraciones: Map<pedidoId, rating> guardado en SharedPreferences
+    val valoracionesPrefs = remember {
+        context.getSharedPreferences("cletaeats_valoraciones", android.content.Context.MODE_PRIVATE)
+    }
+    fun cargarValoraciones(): Map<Int, Int> {
+        val json = valoracionesPrefs.getString("mapa", null) ?: return emptyMap()
+        return try {
+            val type = object : com.google.gson.reflect.TypeToken<Map<Int, Int>>() {}.type
+            com.google.gson.Gson().fromJson(json, type) ?: emptyMap()
+        } catch (e: Exception) { emptyMap() }
+    }
+    fun guardarValoracion(pedidoId: Int, rating: Int, valoraciones: Map<Int, Int>): Map<Int, Int> {
+        val nuevo = valoraciones + (pedidoId to rating)
+        valoracionesPrefs.edit().putString("mapa", com.google.gson.Gson().toJson(nuevo)).apply()
+        return nuevo
+    }
+
+    var pedidosValorados by remember { mutableStateOf(cargarValoraciones()) }
+
     var orderToTrack by remember { mutableStateOf<PedidoItem?>(null) }
     var orderToCancel by remember { mutableStateOf<PedidoItem?>(null) }
     var latestCreatedOrder by remember { mutableStateOf<PedidoItem?>(null) }
@@ -293,6 +312,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             onTrackClick = { orderToTrack = it },
                             onCancelClick = { orderToCancel = it },
                             onRateClick = { pedidoAValorar = it },
+                            pedidosValorados = pedidosValorados,
                             filterStatus = historialFilterStatus,
                             onFilterChange = { historialFilterStatus = it }
                         )
@@ -486,10 +506,18 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             com.cletaeats.network.ValoracionRequest(rating, comentario.ifBlank { null })
                         )
                         if (resp.success) {
+                            val idValorado = pedidoAValorar!!.id
+                            pedidosValorados = guardarValoracion(idValorado, rating, pedidosValorados)
                             pedidoAValorar = null
                         }
                     } catch (e: Exception) {
                         android.util.Log.e("CletaEats", "Error enviando valoración: ${e.message}")
+                        // Guardar localmente igual para que la UI no permita revalorar
+                        val idValorado = pedidoAValorar?.id
+                        if (idValorado != null) {
+                            pedidosValorados = guardarValoracion(idValorado, rating, pedidosValorados)
+                        }
+                        pedidoAValorar = null
                     } finally {
                         isSubmittingRating = false
                     }

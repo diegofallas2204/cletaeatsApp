@@ -30,27 +30,27 @@ fun ClienteHistorialTab(
     onTrackClick: (PedidoItem) -> Unit,
     onCancelClick: (PedidoItem) -> Unit,
     onRateClick: (PedidoItem) -> Unit = {},
+    pedidosValorados: Map<Int, Int> = emptyMap(),
     filterStatus: OrderFilterStatus = OrderFilterStatus.ACTIVOS,
     onFilterChange: (OrderFilterStatus) -> Unit = {}
 ) {
-    // Función para mapear estado del backend a términos legibles
     fun normalizeStatus(estado: String?): String {
-        val rawStatus = estado ?: "pendiente"
-        return if (rawStatus == "suspendido") "cancelado" else rawStatus.lowercase()
+        val rawStatus = (estado ?: "preparacion").lowercase()
+        return if (rawStatus == "suspendido") "cancelado" else rawStatus
     }
 
-    // Filtrar pedidos según el filtro seleccionado
+    val estadosTerminados = setOf("entregado", "cancelado", "suspendido")
+
     val filteredHistorial = when (filterStatus) {
         OrderFilterStatus.TODOS -> historial
         OrderFilterStatus.ACTIVOS -> historial.filter {
-            val status = normalizeStatus(it.estado)
-            status != "cancelado" && status != "entregado"
+            normalizeStatus(it.estado) !in estadosTerminados
         }
         OrderFilterStatus.ENTREGADOS -> historial.filter {
             normalizeStatus(it.estado) == "entregado"
         }
         OrderFilterStatus.CANCELADOS -> historial.filter {
-            normalizeStatus(it.estado) == "cancelado"
+            normalizeStatus(it.estado) in setOf("cancelado", "suspendido")
         }
     }
 
@@ -117,13 +117,16 @@ fun ClienteHistorialTab(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(filteredHistorial) { pedido ->
+                    val esEntregado = (pedido.estado ?: "").lowercase() == "entregado"
+                    val ratingDado = pedidosValorados[pedido.id]
                     OrderCard(
                         pedido = pedido,
                         onTrackClick = { onTrackClick(pedido) },
                         onCancelClick = { onCancelClick(pedido) },
-                        onRateClick = if ((pedido.estado ?: "").lowercase() == "entregado") {
+                        onRateClick = if (esEntregado && ratingDado == null) {
                             { onRateClick(pedido) }
-                        } else null
+                        } else null,
+                        valoracionDada = ratingDado
                     )
                 }
                 item { Spacer(Modifier.height(80.dp)) }

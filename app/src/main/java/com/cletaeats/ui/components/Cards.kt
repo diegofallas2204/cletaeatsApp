@@ -178,7 +178,8 @@ fun OrderCard(
     pedido: PedidoItem,
     onTrackClick: () -> Unit = {},
     onCancelClick: () -> Unit = {},
-    onRateClick: (() -> Unit)? = null
+    onRateClick: (() -> Unit)? = null,
+    valoracionDada: Int? = null
 ) {
     val estado = (pedido.estado ?: "preparacion").lowercase()
     val esEntregado = estado == "entregado"
@@ -221,18 +222,55 @@ fun OrderCard(
                 }
             }
 
-            // Botón de valorar solo para pedidos entregados y si no fue valorado aún
-            if (esEntregado && onRateClick != null) {
+            // Sección de valoración: estrellas si ya valoró, botón si no
+            if (esEntregado) {
                 Spacer(Modifier.height(10.dp))
-                OutlinedButton(
-                    onClick = onRateClick,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, OrangeSoft)
-                ) {
-                    Icon(Icons.Default.Star, null, tint = OrangeSoft, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Valorar pedido", color = OrangeSoft, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                HorizontalDivider(color = CreamDark)
+                Spacer(Modifier.height(10.dp))
+
+                if (valoracionDada != null) {
+                    // Mostrar rating dado (solo lectura)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "Tu valoración:",
+                            fontSize = 12.sp,
+                            color = TextMid,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Row {
+                            (1..5).forEach { star ->
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = if (star <= valoracionDada) OrangeSoft else Color(0xFFDDDDDD),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "$valoracionDada/5",
+                            fontSize = 12.sp,
+                            color = OrangeSoft,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else if (onRateClick != null) {
+                    // Botón para valorar
+                    OutlinedButton(
+                        onClick = onRateClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, OrangeSoft)
+                    ) {
+                        Icon(Icons.Default.Star, null, tint = OrangeSoft, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Valorar pedido", color = OrangeSoft, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }

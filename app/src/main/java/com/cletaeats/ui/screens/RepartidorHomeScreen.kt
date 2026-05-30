@@ -107,9 +107,27 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
         }
     }
 
+    // Actualiza estado en todos los lugares de estado relevantes
+    fun applyEstadoLocally(pedidoId: Int, nuevoEstado: String) {
+        pedidos = pedidos.map { if (it.id == pedidoId) it.copy(estado = nuevoEstado) else it }
+        if (pedidoSeleccionado?.id == pedidoId) {
+            if (nuevoEstado == "entregado") {
+                pedidoSeleccionado = null // cerrar mapa al entregar
+            } else {
+                pedidoSeleccionado = pedidoSeleccionado?.copy(estado = nuevoEstado)
+            }
+        }
+        val actualizados = sqliteHelper.obtenerPedidos().map {
+            if (it.id == pedidoId) it.copy(estado = nuevoEstado) else it
+        }
+        sqliteHelper.guardarPedidos(actualizados)
+    }
+
     fun updateStatus(pedido: PedidoItem, nuevoEstado: String) {
         coroutineScope.launch {
             isSubmittingStatus = true
+            // Actualizar UI inmediatamente para que el botón reaccione
+            applyEstadoLocally(pedido.id, nuevoEstado)
             try {
                 val t = TokenManager.token ?: return@launch
                 val response = CletaApi.retrofitService.updateOrderStatus(
@@ -118,33 +136,20 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                     UpdateStatusRequest(nuevoEstado)
                 )
                 if (response.success) {
-                    val actualizados = sqliteHelper.obtenerPedidos().map {
-                        if (it.id == pedido.id) it.copy(estado = nuevoEstado) else it
-                    }
-                    sqliteHelper.guardarPedidos(actualizados)
                     refreshData()
                 } else {
-                    // Servidor rechazó el cambio: encolar y reintentar
                     Log.w("CletaEats", "updateStatus rechazado por API, encolando: ${response}")
                     val updateReq = com.cletaeats.database.UpdateStatusPayload(pedido.id, nuevoEstado)
-                    val jsonUpdate = com.google.gson.Gson().toJson(updateReq)
-                    com.cletaeats.database.SyncManager.guardarYSincronizar("UPDATE_ORDER_STATUS", jsonUpdate)
-                    val actualizados = sqliteHelper.obtenerPedidos().map {
-                        if (it.id == pedido.id) it.copy(estado = nuevoEstado) else it
-                    }
-                    sqliteHelper.guardarPedidos(actualizados)
-                    pedidos = pedidos.map { if (it.id == pedido.id) it.copy(estado = nuevoEstado) else it }
+                    com.cletaeats.database.SyncManager.guardarYSincronizar(
+                        "UPDATE_ORDER_STATUS", com.google.gson.Gson().toJson(updateReq)
+                    )
                 }
             } catch (e: Exception) {
-                Log.e("CletaEats", "Error al actualizar estado del pedido offline: ${e.message}")
+                Log.e("CletaEats", "Error al actualizar estado del pedido: ${e.message}")
                 val updateReq = com.cletaeats.database.UpdateStatusPayload(pedido.id, nuevoEstado)
-                val jsonUpdate = com.google.gson.Gson().toJson(updateReq)
-                com.cletaeats.database.SyncManager.guardarYSincronizar("UPDATE_ORDER_STATUS", jsonUpdate)
-                val actualizados = sqliteHelper.obtenerPedidos().map {
-                    if (it.id == pedido.id) it.copy(estado = nuevoEstado) else it
-                }
-                sqliteHelper.guardarPedidos(actualizados)
-                pedidos = pedidos.map { if (it.id == pedido.id) it.copy(estado = nuevoEstado) else it }
+                com.cletaeats.database.SyncManager.guardarYSincronizar(
+                    "UPDATE_ORDER_STATUS", com.google.gson.Gson().toJson(updateReq)
+                )
             } finally {
                 isSubmittingStatus = false
             }
@@ -153,10 +158,9 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
 
     fun acceptOrder(pedido: PedidoItem) {
         coroutineScope.launch {
-            // Regla: Solo un pedido activo a la vez
-            val tieneAsignado = pedidos.any { it.estado == "aceptado" || it.estado == "en_camino" || it.estado == "preparando" }
+            val estadosActivos = setOf("aceptado", "camino", "en_camino", "en camino", "preparando", "preparacion")
+            val tieneAsignado = pedidos.any { (it.estado?.lowercase() ?: "") in estadosActivos }
             if (tieneAsignado) {
-                // Idealmente mostraríamos un Snackbar/Toast aquí, pero a nivel lógico bloqueamos
                 Log.e("CletaEats", "El repartidor ya tiene un pedido activo. No puede asignar otro.")
                 return@launch
             }
@@ -166,48 +170,27 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                 val t = TokenManager.token ?: return@launch
                 // Primero asignamos el pedido a este repartidor
                 val responseAsignar = CletaApi.retrofitService.asignarPedido("Bearer $t", pedido.id)
+                applyEstadoLocally(pedido.id, "aceptado")
                 if (responseAsignar.success) {
-                    // Luego le actualizamos el estado a 'aceptado'
                     CletaApi.retrofitService.updateOrderStatus("Bearer $t", pedido.id, UpdateStatusRequest("aceptado"))
-
-                    // Update local UI immediately to reflect the accepted status while we refresh in background
-                    pedidos = pedidos.map { if (it.id == pedido.id) it.copy(estado = "aceptado") else it }
-                    val actualizados = sqliteHelper.obtenerPedidos().map {
-                        if (it.id == pedido.id) it.copy(estado = "aceptado") else it
-                    }
-                    sqliteHelper.guardarPedidos(actualizados)
-                    Log.d("CletaEats", "Pedido ${pedido.id} aceptado.")
+                    Log.d("CletaEats", "Pedido ${pedido.id} aceptado en servidor.")
                     refreshData()
                 } else {
-                    // Servidor rechazó la asignación: encolar para reintento
-                    Log.w("CletaEats", "asignarPedido rechazado por API, encolando: ${responseAsignar.error}")
-                    val updateReq = com.cletaeats.database.UpdateStatusPayload(pedido.id, "aceptado")
-                    val jsonUpdate = com.google.gson.Gson().toJson(updateReq)
+                    Log.w("CletaEats", "asignarPedido rechazado, encolando: ${responseAsignar.error}")
+                    val jsonUpdate = com.google.gson.Gson().toJson(
+                        com.cletaeats.database.UpdateStatusPayload(pedido.id, "aceptado")
+                    )
                     com.cletaeats.database.SyncManager.guardarYSincronizar("ASSIGN_ORDER", pedido.id.toString())
                     com.cletaeats.database.SyncManager.guardarAccionPendiente("UPDATE_ORDER_STATUS", jsonUpdate)
-                    pedidos = pedidos.map { if (it.id == pedido.id) it.copy(estado = "aceptado") else it }
-                    sqliteHelper.guardarPedidos(sqliteHelper.obtenerPedidos().map {
-                        if (it.id == pedido.id) it.copy(estado = "aceptado") else it
-                    })
                 }
             } catch (e: Exception) {
-                Log.e("CletaEats", "Error al asignar pedido offline: ${e.message}")
+                Log.e("CletaEats", "Error al asignar pedido: ${e.message}")
+                applyEstadoLocally(pedido.id, "aceptado")
+                val jsonUpdate = com.google.gson.Gson().toJson(
+                    com.cletaeats.database.UpdateStatusPayload(pedido.id, "aceptado")
+                )
                 com.cletaeats.database.SyncManager.guardarYSincronizar("ASSIGN_ORDER", pedido.id.toString())
-                val updateReq = com.cletaeats.database.UpdateStatusPayload(pedido.id, "aceptado")
-                val jsonUpdate = com.google.gson.Gson().toJson(updateReq)
                 com.cletaeats.database.SyncManager.guardarAccionPendiente("UPDATE_ORDER_STATUS", jsonUpdate)
-
-                // Update local UI and persist locally so reconnection won't overwrite it
-                pedidos = pedidos.map { if (it.id == pedido.id) it.copy(estado = "aceptado") else it }
-                try {
-                    val stored = sqliteHelper.obtenerPedidos().toMutableList()
-                    val replaced = (stored.filter { it.id != pedido.id } + pedidos.filter { it.id == pedido.id }).distinctBy { it.id }
-                    sqliteHelper.guardarPedidos(stored.filter { it.id !in replaced.map { r -> r.id } } + replaced)
-                } catch (ex: Exception) {
-                    Log.w("CletaEats", "No se pudo persistir estado aceptado localmente: ${ex.message}")
-                }
-
-                Log.d("CletaEats", "Pedido ${pedido.id} quedó aceptado localmente; el usuario puede abrir historial manualmente.")
             } finally {
                 isSubmittingStatus = false
             }
@@ -259,12 +242,19 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                             CircularProgressIndicator(color = BrownDark)
                         }
                     } else {
+                        val estadosActivos = setOf("aceptado", "camino", "en_camino", "en camino", "preparando", "preparacion")
+                        val pedidoActivo = pedidos.firstOrNull { (it.estado?.lowercase() ?: "") in estadosActivos }
+                        val tieneActivo = pedidoActivo != null
+
                         when (activeTab) {
                             RepartidorActiveTab.INICIO -> RepartidorInicioTab(
                                 pedidos = pedidos,
                                 isRefreshing = isRefreshing,
+                                tieneActivo = tieneActivo,
+                                pedidoActivo = pedidoActivo,
                                 onAcceptOrder = { acceptOrder(it) },
-                                onRefresh = { isRefreshing = true; refreshData() }
+                                onRefresh = { isRefreshing = true; refreshData() },
+                                onVerActivo = { pedidoSeleccionado = pedidoActivo }
                             )
                             RepartidorActiveTab.HISTORIAL -> RepartidorHistorialTab(
                                 pedidos = pedidos,
