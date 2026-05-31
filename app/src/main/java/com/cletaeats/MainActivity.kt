@@ -39,6 +39,8 @@ class MainActivity : ComponentActivity() {
         SessionManager.init(this)
         LocalCacheManager.init(this)
         com.cletaeats.database.SyncManager.init(this)
+        com.cletaeats.storage.LocalTransactionCounter.init(this)
+        com.cletaeats.storage.StorageOrchestrator.init(this)
 
         // Sync periódico en background cada 15 minutos (solo con red)
         val syncRequest = PeriodicWorkRequestBuilder<SyncWorker>(15, TimeUnit.MINUTES)

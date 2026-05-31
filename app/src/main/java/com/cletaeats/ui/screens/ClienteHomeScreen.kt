@@ -11,7 +11,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.filled.Cloud
 import com.cletaeats.network.*
+import com.cletaeats.storage.CloudPedidoStorage
+import com.cletaeats.storage.LocalTransactionCounter
+import com.cletaeats.storage.StorageMode
+import com.cletaeats.storage.StorageOrchestrator
+import com.cletaeats.storage.isCloud
 import com.cletaeats.ui.components.*
 import com.cletaeats.ui.theme.*
 import com.cletaeats.ui.tracking.*
@@ -75,6 +81,15 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
 
     val connectionState by connectivityState()
     val networkOnline = connectionState is ConnectionState.Available
+
+    // ── Storage orchestrator state ────────────────────────────────────
+    var showCloudScreen by remember { mutableStateOf(false) }
+    var isCloudForced by remember { mutableStateOf(StorageOrchestrator.isCloudForced) }
+    var cloudPedidos by remember { mutableStateOf(CloudPedidoStorage.obtenerTodos()) }
+    var isSyncingCloud by remember { mutableStateOf(false) }
+
+    // Se recalcula en cada recomposición; networkOnline (State) dispara recomposición al cambiar conectividad
+    val storageMode = StorageOrchestrator.determinarModo()
 
     fun refreshData() {
         coroutineScope.launch {
@@ -264,7 +279,24 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         }
     }
 
-    if (orderToTrack != null) {
+    if (showCloudScreen) {
+        CloudStorageScreen(
+            pedidos = cloudPedidos,
+            canSync = networkOnline,
+            isSyncing = isSyncingCloud,
+            onBack = { showCloudScreen = false },
+            onSync = {
+                isSyncingCloud = true
+                coroutineScope.launch {
+                    try {
+                        com.cletaeats.database.SyncManager.sincronizar()
+                    } finally {
+                        isSyncingCloud = false
+                    }
+                }
+            }
+        )
+    } else if (orderToTrack != null) {
         val trackingVm = remember(orderToTrack) { TrackingViewModel(orderToTrack!!) }
         OrderTrackingMapScreen(viewModel = trackingVm, onBack = { orderToTrack = null; refreshData() }, onOrderCancelled = { orderToTrack = null; refreshData() })
     } else if (showOrderTracking) {
@@ -273,8 +305,22 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("­ƒì£ CLETAEATS", fontWeight = FontWeight.Bold, color = Color.White) },
-                    actions = { IconButton(onClick = onLogout) { Icon(Icons.Default.Logout, "Logout", tint = Color.White) } },
+                    title = { Text("🚲 CLETAEATS", fontWeight = FontWeight.Bold, color = Color.White) },
+                    actions = {
+                        // Ícono nube — badge con el contador si hay pedidos en cloud
+                        IconButton(onClick = { cloudPedidos = CloudPedidoStorage.obtenerTodos(); showCloudScreen = true }) {
+                            BadgedBox(
+                                badge = {
+                                    if (cloudPedidos.isNotEmpty()) {
+                                        Badge { Text("${cloudPedidos.size}") }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.Cloud, contentDescription = "Ver nube", tint = Color.White)
+                            }
+                        }
+                        IconButton(onClick = onLogout) { Icon(Icons.Default.Logout, "Logout", tint = Color.White) }
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = BrownDark)
                 )
             },
@@ -287,7 +333,24 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                ConnectionStatusBanner(networkOnline)
+                StorageBanner(
+                    mode = storageMode,
+                    localCount = LocalTransactionCounter.count,
+                    localLimit = LocalTransactionCounter.threshold.limit
+                )
+                DataSourceModeToggle(
+                    isApiMode = com.cletaeats.database.SyncManager.isApiMode,
+                    onToggle = { com.cletaeats.database.SyncManager.setApiMode(it) },
+                    isCloudForced = isCloudForced,
+                    onCloudForceToggle = { enabled ->
+                        StorageOrchestrator.isCloudForced = enabled
+                        isCloudForced = enabled
+                    },
+                    isOnline = networkOnline,
+                    currentThreshold = LocalTransactionCounter.threshold,
+                    onThresholdChange = { LocalTransactionCounter.threshold = it },
+                    localCount = LocalTransactionCounter.count
+                )
                 Box(modifier = Modifier.fillMaxSize()) {
                 if (isLoading) {
                     Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator(color = BrownDark) }
@@ -416,18 +479,6 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                     } catch (e: Exception) {
                         Log.e("CletaEats", "Error confirmación pedido: ${e.message}")
                         val localOrderId = (1000..9999).random()
-                        try {
-                            val request = OrderUtils.createPayload(selectedRestaurant!!.id, cartItems, numeroTarjetaFinal)
-                            val gson = com.google.gson.Gson()
-                            val pendingPayload = PendingCreateOrderPayload(localOrderId = localOrderId, request = request)
-                            com.cletaeats.database.SyncManager.guardarYSincronizar(
-                                "CREATE_ORDER",
-                                gson.toJson(pendingPayload)
-                            )
-                        } catch (ex: Exception) {
-                            Log.e("CletaEats", "Error serializando pedido offline: ${ex.message}")
-                        }
-
                         val totalCost = cartItems.sumOf { (it.combo.precio + if (it.agrandado) 1500.0 else 0.0) * it.cantidad }
                         val localOrder = PedidoItem(
                             id = localOrderId,
@@ -435,7 +486,25 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             total = totalCost + (totalCost * 0.13) + 1500.0,
                             estado = "pendiente"
                         )
-                        sqliteHelper.guardarPedidos(sqliteHelper.obtenerPedidos() + localOrder)
+
+                        val modoUsado = StorageOrchestrator.guardarPedidoLocal(localOrder, sqliteHelper)
+
+                        // Solo encolar en SyncManager si se guardó en LOCAL (no en cloud)
+                        if (!modoUsado.isCloud()) {
+                            try {
+                                val request = OrderUtils.createPayload(selectedRestaurant!!.id, cartItems, numeroTarjetaFinal)
+                                val gson = com.google.gson.Gson()
+                                val pendingPayload = PendingCreateOrderPayload(localOrderId = localOrderId, request = request)
+                                com.cletaeats.database.SyncManager.guardarYSincronizar(
+                                    "CREATE_ORDER",
+                                    gson.toJson(pendingPayload)
+                                )
+                            } catch (ex: Exception) {
+                                Log.e("CletaEats", "Error serializando pedido offline: ${ex.message}")
+                            }
+                        }
+
+                        cloudPedidos = CloudPedidoStorage.obtenerTodos()
                         latestCreatedOrder = localOrder
                         showPaymentDialog = false
                         refreshData()
