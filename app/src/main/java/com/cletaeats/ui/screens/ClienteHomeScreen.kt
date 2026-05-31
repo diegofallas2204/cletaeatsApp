@@ -11,7 +11,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.DeliveryDining
+import androidx.compose.ui.unit.dp
 import com.cletaeats.network.*
+import com.cletaeats.storage.CloudPedidoStorage
+import com.cletaeats.storage.LocalTransactionCounter
+import com.cletaeats.storage.StorageOrchestrator
+import com.cletaeats.storage.isCloud
 import com.cletaeats.ui.components.*
 import com.cletaeats.ui.theme.*
 import com.cletaeats.ui.tracking.*
@@ -48,40 +55,77 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
     val context = LocalContext.current
     val sqliteHelper = remember { com.cletaeats.database.CletaSQLiteHelper(context) }
 
+    // Persistencia de valoraciones: Map<pedidoId, rating> guardado en SharedPreferences
+    val valoracionesPrefs = remember {
+        context.getSharedPreferences("cletaeats_valoraciones", android.content.Context.MODE_PRIVATE)
+    }
+    fun cargarValoraciones(): Map<Int, Int> {
+        val json = valoracionesPrefs.getString("mapa", null) ?: return emptyMap()
+        return try {
+            val type = object : com.google.gson.reflect.TypeToken<Map<Int, Int>>() {}.type
+            com.google.gson.Gson().fromJson(json, type) ?: emptyMap()
+        } catch (e: Exception) { emptyMap() }
+    }
+    fun guardarValoracion(pedidoId: Int, rating: Int, valoraciones: Map<Int, Int>): Map<Int, Int> {
+        val nuevo = valoraciones + (pedidoId to rating)
+        valoracionesPrefs.edit().putString("mapa", com.google.gson.Gson().toJson(nuevo)).apply()
+        return nuevo
+    }
+
+    var pedidosValorados by remember { mutableStateOf(cargarValoraciones()) }
+
     var orderToTrack by remember { mutableStateOf<PedidoItem?>(null) }
     var orderToCancel by remember { mutableStateOf<PedidoItem?>(null) }
     var latestCreatedOrder by remember { mutableStateOf<PedidoItem?>(null) }
+    var pedidoAValorar by remember { mutableStateOf<PedidoItem?>(null) }
+    var isSubmittingRating by remember { mutableStateOf(false) }
 
     val connectionState by connectivityState()
     val networkOnline = connectionState is ConnectionState.Available
 
+    // ── Storage orchestrator state ────────────────────────────────────
+    var showCloudScreen by remember { mutableStateOf(false) }
+    // Todos los modos como State de Compose — init() los resetea a defaults en cada arranque
+    var isApiMode by remember { mutableStateOf(com.cletaeats.database.SyncManager.isApiMode) }
+    var isCloudForced by remember { mutableStateOf(StorageOrchestrator.isCloudForced) }
+    var isDiskExpansionMode by remember { mutableStateOf(StorageOrchestrator.isDiskExpansionMode) }
+    var currentThreshold by remember { mutableStateOf(LocalTransactionCounter.threshold) }
+    var cloudPedidos by remember { mutableStateOf(CloudPedidoStorage.obtenerTodos()) }
+    var isSyncingCloud by remember { mutableStateOf(false) }
+
+    // Se recalcula en cada recomposición; networkOnline y los State anteriores disparan recomposición
+    val storageMode = StorageOrchestrator.determinarModo()
+
     fun refreshData() {
         coroutineScope.launch {
             try {
-                val t = TokenManager.token ?: return@launch
-                val restaurantesLocales = sqliteHelper.obtenerRestaurantes()
                 val localPedidos = sqliteHelper.obtenerPedidos()
+                val cloudItems = CloudPedidoStorage.obtenerTodos()
 
+                // Intentar cargar desde API siempre (si hay conexión y token)
                 var serverPedidos: List<PedidoItem> = emptyList()
                 try {
+                    val t = TokenManager.token ?: throw Exception("Sin token")
                     val response = CletaApi.retrofitService.getClienteHistorial("Bearer $t")
-                    if (response.success) {
-                        serverPedidos = response.data ?: emptyList()
-                    }
+                    if (response.success) serverPedidos = response.data ?: emptyList()
                 } catch (e: Exception) {
-                    Log.e("CletaEats", "Error cargando historial desde API: ${e.message}")
+                    Log.e("CletaEats", "Historial API no disponible, usando caché: ${e.message}")
                 }
 
                 val merged = if (serverPedidos.isNotEmpty()) {
+                    val restaurantesLocales = sqliteHelper.obtenerRestaurantes()
                     PedidoMergeUtils.mergeWithLocalCache(serverPedidos, localPedidos, restaurantesLocales)
+                        .also { sqliteHelper.guardarPedidos(it) }
                 } else {
                     localPedidos
                 }
-                historial = merged
-                sqliteHelper.guardarPedidos(merged)
+
+                // Mostrar todos: API/local + nube, usando badge para identificar origen
+                historial = (merged + cloudItems).distinctBy { it.id }
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error cargando historial: ${e.message}")
-                historial = sqliteHelper.obtenerPedidos()
+                val cloudItems = CloudPedidoStorage.obtenerTodos()
+                historial = (sqliteHelper.obtenerPedidos() + cloudItems).distinctBy { it.id }
             }
         }
     }
@@ -243,7 +287,24 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         }
     }
 
-    if (orderToTrack != null) {
+    if (showCloudScreen) {
+        CloudStorageScreen(
+            pedidos = cloudPedidos,
+            canSync = networkOnline,
+            isSyncing = isSyncingCloud,
+            onBack = { showCloudScreen = false },
+            onSync = {
+                isSyncingCloud = true
+                coroutineScope.launch {
+                    try {
+                        com.cletaeats.database.SyncManager.sincronizar()
+                    } finally {
+                        isSyncingCloud = false
+                    }
+                }
+            }
+        )
+    } else if (orderToTrack != null) {
         val trackingVm = remember(orderToTrack) { TrackingViewModel(orderToTrack!!) }
         OrderTrackingMapScreen(viewModel = trackingVm, onBack = { orderToTrack = null; refreshData() }, onOrderCancelled = { orderToTrack = null; refreshData() })
     } else if (showOrderTracking) {
@@ -252,13 +313,37 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("­ƒì£ CLETAEATS", fontWeight = FontWeight.Bold, color = Color.White) },
-                    actions = { IconButton(onClick = onLogout) { Icon(Icons.Default.Logout, "Logout", tint = Color.White) } },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.DeliveryDining, contentDescription = null, tint = OrangeSoft, modifier = Modifier.size(24.dp))
+                            Text("CLETAEATS", fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    },
+                    actions = {
+                        // Ícono nube — badge con el contador si hay pedidos en cloud
+                        IconButton(onClick = { cloudPedidos = CloudPedidoStorage.obtenerTodos(); showCloudScreen = true }) {
+                            BadgedBox(
+                                badge = {
+                                    if (cloudPedidos.isNotEmpty()) {
+                                        Badge { Text("${cloudPedidos.size}") }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.Cloud, contentDescription = "Ver nube", tint = Color.White)
+                            }
+                        }
+                        IconButton(onClick = onLogout) { Icon(Icons.Default.Logout, "Logout", tint = Color.White) }
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = BrownDark)
                 )
             },
             bottomBar = {
-                ClienteBottomBar(activeTab = activeTab, onTabSelect = { tab -> activeTab = tab; selectedRestaurant = null })
+                ClienteBottomBar(activeTab = activeTab, onTabSelect = { tab ->
+                    activeTab = tab
+                    selectedRestaurant = null
+                    // Refrescar lista cloud al entrar al historial
+                    if (tab == ActiveTab.HISTORIAL) cloudPedidos = CloudPedidoStorage.obtenerTodos()
+                })
             }
         ) { paddingValues ->
             Column(
@@ -266,7 +351,12 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                ConnectionStatusBanner(networkOnline)
+                StorageBanner(
+                    mode = storageMode,
+                    isOnline = networkOnline,
+                    localCount = LocalTransactionCounter.count,
+                    localLimit = currentThreshold.limit
+                )
                 Box(modifier = Modifier.fillMaxSize()) {
                 if (isLoading) {
                     Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator(color = BrownDark) }
@@ -290,8 +380,11 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             historial = historial,
                             onTrackClick = { orderToTrack = it },
                             onCancelClick = { orderToCancel = it },
+                            onRateClick = { pedidoAValorar = it },
+                            pedidosValorados = pedidosValorados,
                             filterStatus = historialFilterStatus,
-                            onFilterChange = { historialFilterStatus = it }
+                            onFilterChange = { historialFilterStatus = it },
+                            cloudPedidoIds = cloudPedidos.map { it.id }.toSet()
                         )
                         ActiveTab.INICIO -> ClienteInicioTab(
                             restaurantes = restaurantes, searchQuery = searchQuery, onSearchQueryChange = { searchQuery = it },
@@ -300,6 +393,32 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         ActiveTab.PERFIL -> ClientePerfilTab(
                             tarjetas = tarjetasGuardadas,
                             userProfile = userProfile,
+                            isApiMode = isApiMode,
+                            isCloudForced = isCloudForced,
+                            onCloudForceToggle = { enabled ->
+                                isCloudForced = enabled
+                                StorageOrchestrator.isCloudForced = enabled
+                                if (enabled) isDiskExpansionMode = false // excluyente
+                            },
+                            isDiskExpansionMode = isDiskExpansionMode,
+                            onDiskExpansionToggle = { enabled ->
+                                isDiskExpansionMode = enabled
+                                StorageOrchestrator.isDiskExpansionMode = enabled
+                                if (enabled) {
+                                    isCloudForced = false
+                                    StorageOrchestrator.isCloudForced = false
+                                    currentThreshold = LocalTransactionCounter.threshold
+                                }
+                            },
+                            isOnline = networkOnline,
+                            currentThreshold = currentThreshold,
+                            onThresholdChange = {
+                                currentThreshold = it
+                                LocalTransactionCounter.threshold = it
+                            },
+                            localCount = LocalTransactionCounter.count,
+                            cloudCount = cloudPedidos.size,
+                            onViewCloud = { cloudPedidos = CloudPedidoStorage.obtenerTodos(); showCloudScreen = true },
                             onAddCardClick = { showPaymentDialog = true },
                             onDeleteCard = { id ->
                                 coroutineScope.launch {
@@ -314,7 +433,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                                         Log.e("CletaEats", "Error borrando tarjeta: ${e.message}")
                                         tarjetasGuardadas = tarjetasGuardadas.filter { it.id != id }
                                         sqliteHelper.eliminarTarjeta(id)
-                                        com.cletaeats.database.SyncManager.guardarAccionPendiente("DELETE_CARD", id.toString())
+                                        com.cletaeats.database.SyncManager.guardarYSincronizar("DELETE_CARD", id.toString())
                                     }
                                 }
                             }
@@ -360,14 +479,14 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
                             sqliteHelper.guardarTarjetas(tarjetasGuardadas)
                             val json = com.google.gson.Gson().toJson(nuevaTarjeta)
-                            com.cletaeats.database.SyncManager.guardarAccionPendiente("SAVE_CARD", json)
+                            com.cletaeats.database.SyncManager.guardarYSincronizar("SAVE_CARD", json)
                         }
                     } catch (e: Exception) {
                         Log.e("CletaEats", "Error guardando tarjeta: ${e.message}")
                         tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
                         sqliteHelper.guardarTarjetas(tarjetasGuardadas)
                         val json = com.google.gson.Gson().toJson(nuevaTarjeta)
-                        com.cletaeats.database.SyncManager.guardarAccionPendiente("SAVE_CARD", json)
+                        com.cletaeats.database.SyncManager.guardarYSincronizar("SAVE_CARD", json)
                     }
                 }
             },
@@ -375,50 +494,94 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                 coroutineScope.launch {
                     isSubmittingOrder = true
                     try {
-                        val t = TokenManager.token ?: return@launch
-                        val request = OrderUtils.createPayload(selectedRestaurant!!.id, cartItems, numeroTarjetaFinal)
-                        val resp = CletaApi.retrofitService.createOrder("Bearer $t", request)
-                        if (resp.success) {
-                            val idStr = resp.data?.replace("Pedido creado con ID: ", "")?.trim()
-                            val orderId = idStr?.toIntOrNull() ?: 0
-                            val totalCost = cartItems.sumOf { (it.combo.precio + if (it.agrandado) 1500.0 else 0.0) * it.cantidad }
-                            latestCreatedOrder = PedidoItem(id = orderId, restauranteNombre = selectedRestaurant?.nombre ?: "Restaurante", total = totalCost + (totalCost * 0.13) + 1500.0, estado = "pendiente")
-                            showPaymentDialog = false
-                            refreshData()
-                            showOrderTracking = true
-                            cartItems = emptyList()
-                        } else {
-                            throw Exception("Fallback to local")
-                        }
-                    } catch (e: Exception) {
-                        Log.e("CletaEats", "Error confirmación pedido: ${e.message}")
-                        val localOrderId = (1000..9999).random()
-                        try {
+                        val t = TokenManager.token ?: throw Exception("Sin token")
+                        val totalCost = cartItems.sumOf { (it.combo.precio + if (it.agrandado) 1500.0 else 0.0) * it.cantidad }
+                        val totalFinal = totalCost + (totalCost * 0.13) + 1500.0
+
+                        // Los toggles dictan el modo: expansión/cloud overrides API cuando están activos
+                        val usarApi = networkOnline && !isCloudForced && !isDiskExpansionMode
+                        Log.d("CletaEats", "onConfirm → online=$networkOnline cloudForced=$isCloudForced expansion=$isDiskExpansionMode → usarApi=$usarApi")
+
+                        if (usarApi) {
+                            // ── Intento API ─────────────────────────────────────
                             val request = OrderUtils.createPayload(selectedRestaurant!!.id, cartItems, numeroTarjetaFinal)
-                            val gson = com.google.gson.Gson()
-                            val pendingPayload = PendingCreateOrderPayload(localOrderId = localOrderId, request = request)
-                            com.cletaeats.database.SyncManager.guardarAccionPendiente(
-                                "CREATE_ORDER",
-                                gson.toJson(pendingPayload)
-                            )
-                        } catch (ex: Exception) {
-                            Log.e("CletaEats", "Error serializando pedido offline: ${ex.message}")
+                            val resp = CletaApi.retrofitService.createOrder("Bearer $t", request)
+                            if (resp.success) {
+                                val orderId = resp.data?.replace("Pedido creado con ID: ", "")?.trim()?.toIntOrNull() ?: 0
+                                latestCreatedOrder = PedidoItem(
+                                    id = orderId,
+                                    restauranteNombre = selectedRestaurant?.nombre ?: "Restaurante",
+                                    total = totalFinal,
+                                    estado = "pendiente"
+                                )
+                                // Respaldo silencioso en local para continuidad si se pierde conexión
+                                try {
+                                    StorageOrchestrator.guardarPedidoLocal(latestCreatedOrder!!, sqliteHelper)
+                                    Log.d("CletaEats", "Pedido #$orderId respaldado localmente tras éxito de API")
+                                } catch (backupEx: Exception) {
+                                    Log.w("CletaEats", "Backup local post-API falló (no crítico): ${backupEx.message}")
+                                }
+                                showPaymentDialog = false
+                                refreshData()
+                                showOrderTracking = true
+                                cartItems = emptyList()
+                                return@launch  // Éxito — salir sin pasar por fallback
+                            }
+                            // API respondió pero con error → caer a fallback local/cloud
+                            Log.w("CletaEats", "API rechazó el pedido, guardando en fallback")
                         }
 
+                        // ── Fallback LOCAL / CLOUD ───────────────────────────────
+                        // (modo cloud/local explícito, o API caída con internet disponible)
+                        val localOrderId = (1000..9999).random()
+                        val localOrder = PedidoItem(
+                            id = localOrderId,
+                            restauranteNombre = selectedRestaurant?.nombre ?: "Restaurante",
+                            total = totalFinal,
+                            estado = "pendiente"
+                        )
+                        val modoUsado = StorageOrchestrator.guardarPedidoLocal(localOrder, sqliteHelper)
+                        Log.d("CletaEats", "Pedido #$localOrderId → $modoUsado")
+
+                        if (!modoUsado.isCloud()) {
+                            try {
+                                val request = OrderUtils.createPayload(selectedRestaurant!!.id, cartItems, numeroTarjetaFinal)
+                                com.cletaeats.database.SyncManager.guardarYSincronizar(
+                                    "CREATE_ORDER",
+                                    com.google.gson.Gson().toJson(PendingCreateOrderPayload(localOrderId = localOrderId, request = request))
+                                )
+                            } catch (ex: Exception) {
+                                Log.e("CletaEats", "Error encolando para sync: ${ex.message}")
+                            }
+                        }
+                        cloudPedidos = CloudPedidoStorage.obtenerTodos()
+                        latestCreatedOrder = localOrder
+                        showPaymentDialog = false
+                        refreshData()
+                        showOrderTracking = true
+                        cartItems = emptyList()
+
+                    } catch (e: Exception) {
+                        // Fallo de red total → guardar localmente sin importar el modo
+                        Log.e("CletaEats", "Error al confirmar pedido: ${e.message}")
                         val totalCost = cartItems.sumOf { (it.combo.precio + if (it.agrandado) 1500.0 else 0.0) * it.cantidad }
+                        val localOrderId = (1000..9999).random()
                         val localOrder = PedidoItem(
                             id = localOrderId,
                             restauranteNombre = selectedRestaurant?.nombre ?: "Restaurante",
                             total = totalCost + (totalCost * 0.13) + 1500.0,
                             estado = "pendiente"
                         )
-                        sqliteHelper.guardarPedidos(sqliteHelper.obtenerPedidos() + localOrder)
+                        StorageOrchestrator.guardarPedidoLocal(localOrder, sqliteHelper)
+                        cloudPedidos = CloudPedidoStorage.obtenerTodos()
                         latestCreatedOrder = localOrder
                         showPaymentDialog = false
                         refreshData()
                         showOrderTracking = true
                         cartItems = emptyList()
-                    } finally { isSubmittingOrder = false }
+                    } finally {
+                        isSubmittingOrder = false
+                    }
                 }
             }
         )
@@ -441,7 +604,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                             tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
                             sqliteHelper.guardarTarjetas(tarjetasGuardadas)
                             val json = com.google.gson.Gson().toJson(nuevaTarjeta)
-                            com.cletaeats.database.SyncManager.guardarAccionPendiente("SAVE_CARD", json)
+                            com.cletaeats.database.SyncManager.guardarYSincronizar("SAVE_CARD", json)
                             showPaymentDialog = false
                         }
                     } catch (e: Exception) {
@@ -449,7 +612,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
                         sqliteHelper.guardarTarjetas(tarjetasGuardadas)
                         val json = com.google.gson.Gson().toJson(nuevaTarjeta)
-                        com.cletaeats.database.SyncManager.guardarAccionPendiente("SAVE_CARD", json)
+                        com.cletaeats.database.SyncManager.guardarYSincronizar("SAVE_CARD", json)
                         showPaymentDialog = false
                     }
                 }
@@ -463,7 +626,53 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         CancelOrderDialog(
             order = orderToCancel!!,
             onDismiss = { orderToCancel = null },
-            onConfirm = { orderToCancel = null; trackingVm.cancelOrder { refreshData() } }
+            onConfirm = {
+                val cancelledId = orderToCancel?.id
+                orderToCancel = null
+                // Refleja la cancelación de inmediato en la UI sin esperar el refresh
+                if (cancelledId != null) {
+                    historial = historial.map {
+                        if (it.id == cancelledId) it.copy(estado = "cancelado") else it
+                    }
+                }
+                trackingVm.cancelOrder { refreshData() }
+            }
+        )
+    }
+
+    if (pedidoAValorar != null) {
+        RatingDialog(
+            pedidoId = pedidoAValorar!!.id,
+            isSubmitting = isSubmittingRating,
+            onDismiss = { pedidoAValorar = null },
+            onConfirm = { rating, comentario ->
+                coroutineScope.launch {
+                    isSubmittingRating = true
+                    try {
+                        val t = TokenManager.token ?: return@launch
+                        val resp = CletaApi.retrofitService.valorarPedido(
+                            "Bearer $t",
+                            pedidoAValorar!!.id,
+                            com.cletaeats.network.ValoracionRequest(rating, comentario.ifBlank { null })
+                        )
+                        if (resp.success) {
+                            val idValorado = pedidoAValorar!!.id
+                            pedidosValorados = guardarValoracion(idValorado, rating, pedidosValorados)
+                            pedidoAValorar = null
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("CletaEats", "Error enviando valoración: ${e.message}")
+                        // Guardar localmente igual para que la UI no permita revalorar
+                        val idValorado = pedidoAValorar?.id
+                        if (idValorado != null) {
+                            pedidosValorados = guardarValoracion(idValorado, rating, pedidosValorados)
+                        }
+                        pedidoAValorar = null
+                    } finally {
+                        isSubmittingRating = false
+                    }
+                }
+            }
         )
     }
 }

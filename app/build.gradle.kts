@@ -15,6 +15,8 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "API_BASE_URL", "\"https://cletaeatsbe-production.up.railway.app/\"")
     }
 
     compileOptions {
@@ -70,9 +72,13 @@ dependencies {
     // Retrofit (Para conectar con tus Servlets Java)
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     // OpenStreetMap (osmdroid)
     implementation("org.osmdroid:osmdroid-android:6.1.18")
+
+    // WorkManager (sync en background)
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("androidx.test:core:1.6.1")

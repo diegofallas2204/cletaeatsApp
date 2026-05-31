@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import com.cletaeats.ui.theme.CloudBlue
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -19,6 +20,43 @@ import com.cletaeats.network.ComboItem
 import com.cletaeats.network.PedidoItem
 import com.cletaeats.network.RestauranteItem
 import com.cletaeats.ui.theme.*
+
+private fun displayEstado(estado: String?): String = when ((estado ?: "preparacion").lowercase()) {
+    "preparacion" -> "En Preparación"
+    "aceptado"    -> "Aceptado"
+    "camino", "en_camino", "en camino" -> "En Camino"
+    "entregado"   -> "Entregado"
+    "suspendido", "cancelado" -> "Cancelado"
+    else          -> (estado ?: "pendiente").replaceFirstChar { it.uppercase() }
+}
+
+private fun colorEstado(estado: String?): Color = when ((estado ?: "preparacion").lowercase()) {
+    "entregado"   -> GreenAccent
+    "suspendido", "cancelado" -> Color.Red
+    "camino", "en_camino", "en camino" -> OrangeSoft
+    "aceptado", "preparacion" -> BrownMid
+    else          -> Color.Gray
+}
+
+fun getCategoryColor(tipoComida: String?): androidx.compose.ui.graphics.Color {
+    if (tipoComida == null) return OrangeSoft
+    val lower = tipoComida.lowercase()
+    return when {
+        lower.contains("pizza")                                     -> RedAccent
+        lower.contains("burger") || lower.contains("hamburguesa")   -> OrangeSoft
+        lower.contains("pasta") || lower.contains("italiana")       -> BrownLight
+        lower.contains("ensalada") || lower.contains("saludable")   -> GreenAccent
+        lower.contains("sushi") || lower.contains("japonesa")       -> BlueAccent
+        lower.contains("café") || lower.contains("cafe")            -> BrownMid
+        lower.contains("postre") || lower.contains("helado")        -> PinkSoft
+        lower.contains("china") || lower.contains("asiatica")       -> RedAccent
+        lower.contains("marisco") || lower.contains("ceviche")      -> BlueAccent
+        lower.contains("bebida") || lower.contains("jugo")          -> BlueAccent
+        lower.contains("pollo") || lower.contains("chicken")        -> OrangeSoft
+        lower.contains("taco") || lower.contains("mexicana")        -> GreenAccent
+        else                                                         -> OrangeSoft
+    }
+}
 
 fun getCategoryIcon(tipoComida: String?): ImageVector {
 
@@ -128,7 +166,7 @@ fun RestaurantGridItem(
                     imageVector = getCategoryIcon(rest.tipoComida),
                     contentDescription = rest.tipoComida,
                     modifier = Modifier.size(28.dp),
-                    tint = BrownDark
+                    tint = getCategoryColor(rest.tipoComida)
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -156,120 +194,143 @@ fun RestaurantGridItem(
     }
 }
 
+private fun inferSource(id: Int, cloudIds: Set<Int>): String = when {
+    id in cloudIds  -> "CLOUD"
+    id in 1000..9999 -> "LOCAL"
+    else             -> "API"
+}
+
 @Composable
 fun OrderCard(
     pedido: PedidoItem,
+    cloudPedidoIds: Set<Int> = emptySet(),
     onTrackClick: () -> Unit = {},
-    onCancelClick: () -> Unit = {}
+    onCancelClick: () -> Unit = {},
+    onRateClick: (() -> Unit)? = null,
+    valoracionDada: Int? = null
 ) {
+    val estado = (pedido.estado ?: "preparacion").lowercase()
+    val esEntregado = estado == "entregado"
+    val esCancelado = estado == "suspendido" || estado == "cancelado"
+    val esCancelable = !esEntregado && !esCancelado
+
+    val source = inferSource(pedido.id, cloudPedidoIds)
+    val sourceIcon = when (source) {
+        "CLOUD" -> Icons.Default.Cloud
+        "LOCAL" -> Icons.Default.InsertDriveFile
+        else    -> Icons.Default.Language
+    }
+    val sourceColor = when (source) {
+        "CLOUD" -> CloudBlue
+        "LOCAL" -> OrangeSoft
+        else    -> GreenAccent
+    }
+    val sourceLabel = when (source) {
+        "CLOUD" -> "Nube"
+        "LOCAL" -> "Local"
+        else    -> "API"
+    }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onTrackClick() },
-
+        modifier = Modifier.fillMaxWidth().clickable { if (!esEntregado) onTrackClick() },
         shape = RoundedCornerShape(16.dp),
-
-        colors = CardDefaults.cardColors(
-            containerColor = WhiteCard
-        ),
-
+        colors = CardDefaults.cardColors(containerColor = WhiteCard),
         border = BorderStroke(1.dp, CreamDark)
     ) {
-
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-
-            Icon(
-                imageVector = Icons.Default.ShoppingCart,
-                contentDescription = "Pedido",
-                tint = BrownDark,
-                modifier = Modifier.size(28.dp)
-            )
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 16.dp)
-            ) {
-
-                Text(
-                    text = "Pedido #${pedido.id}",
-                    fontWeight = FontWeight.Bold,
-                    color = BrownDark
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (esEntregado) Icons.Default.CheckCircle else Icons.Default.ShoppingCart,
+                    contentDescription = "Pedido",
+                    tint = if (esEntregado) GreenAccent else OrangeSoft,
+                    modifier = Modifier.size(28.dp)
                 )
-
-                Text(
-                    text = pedido.restauranteNombre ?: "Restaurante",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextMid
-                )
-
-                val rawStatus = pedido.estado ?: "pendiente"
-
-                val status = if (rawStatus == "suspendido") {
-                    "cancelado"
-                } else {
-                    rawStatus
+                Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Pedido #${pedido.id}", fontWeight = FontWeight.Bold, color = BrownDark)
+                        // Badge de fuente de almacenamiento
+                        Surface(
+                            color = sourceColor.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(sourceIcon, contentDescription = sourceLabel, tint = sourceColor, modifier = Modifier.size(10.dp))
+                                Text(sourceLabel, fontSize = 9.sp, color = sourceColor, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    Text(pedido.restauranteNombre ?: "Restaurante", style = MaterialTheme.typography.bodySmall, color = TextMid)
+                    Text(
+                        text = displayEstado(pedido.estado),
+                        color = colorEstado(pedido.estado),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
-
-                val statusColor = when (status) {
-                    "entregado" -> GreenAccent
-                    "cancelado" -> Color.Red
-                    "camino" -> OrangeSoft
-                    "preparando" -> BrownMid
-                    else -> Color.Gray
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("₡${pedido.total ?: 0.0}", fontWeight = FontWeight.Bold, color = BrownDark)
+                    if (esCancelable) {
+                        Spacer(Modifier.height(4.dp))
+                        IconButton(onClick = onCancelClick, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Close, "Cancelar", tint = RedAccent, modifier = Modifier.size(16.dp))
+                        }
+                    }
                 }
-
-                Text(
-                    text = "Estado: ${status.uppercase()}",
-                    color = statusColor,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
             }
 
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.Center
-            ) {
+            // Sección de valoración: estrellas si ya valoró, botón si no
+            if (esEntregado) {
+                Spacer(Modifier.height(10.dp))
+                HorizontalDivider(color = CreamDark)
+                Spacer(Modifier.height(10.dp))
 
-                Text(
-                    text = "₡${pedido.total ?: 0.0}",
-                    fontWeight = FontWeight.Bold,
-                    color = BrownDark
-                )
-
-                val rawStatus2 = pedido.estado ?: "pendiente"
-
-                val status = if (rawStatus2 == "suspendido") {
-                    "cancelado"
-                } else {
-                    rawStatus2
-                }
-
-                val isCancelable =
-                    status != "entregado" &&
-                            status != "cancelado"
-
-                if (isCancelable) {
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    IconButton(
-                        onClick = { onCancelClick() },
-                        modifier = Modifier.size(24.dp)
+                if (valoracionDada != null) {
+                    // Mostrar rating dado (solo lectura)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Cancelar Pedido",
-                            tint = Color.Red,
-                            modifier = Modifier.size(16.dp)
+                        Text(
+                            "Tu valoración:",
+                            fontSize = 12.sp,
+                            color = TextMid,
+                            fontWeight = FontWeight.Medium
                         )
+                        Spacer(Modifier.width(8.dp))
+                        Row {
+                            (1..5).forEach { star ->
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = if (star <= valoracionDada) OrangeSoft else Color(0xFFDDDDDD),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "$valoracionDada/5",
+                            fontSize = 12.sp,
+                            color = OrangeSoft,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else if (onRateClick != null) {
+                    // Botón para valorar
+                    OutlinedButton(
+                        onClick = onRateClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, OrangeSoft)
+                    ) {
+                        Icon(Icons.Default.Star, null, tint = OrangeSoft, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Valorar pedido", color = OrangeSoft, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

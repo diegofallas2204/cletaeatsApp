@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/cream" />
+    <item android:gravity="center">
+        <shape>
+            <solid android:color="@color/cream"/>
+            <size android:width="150dp" android:height="150dp"/>
+        </shape>
+    </item>
+    <item android:drawable="@drawable/cletaeats_logo" android:gravity="center" />
+</layer-list>

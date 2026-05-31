@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import com.cletaeats.network.*
+import com.cletaeats.utils.ConnectionState
+import com.cletaeats.utils.currentConnectivityState
 import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +18,7 @@ object SyncManager {
     private const val TAG = "CletaEats"
     private const val PREFS_NAME = "cletaeats_sync_mode"
     private const val KEY_API_MODE = "api_mode"
+    private lateinit var context: Context
     private lateinit var sqliteHelper: CletaSQLiteHelper
     private lateinit var prefs: SharedPreferences
     private val gson = Gson()
@@ -27,10 +30,14 @@ object SyncManager {
 
     enum class DataSourceMode { API, LOCAL }
 
-    fun init(context: Context) {
+    fun init(appContext: Context) {
+        context = appContext.applicationContext
         sqliteHelper = CletaSQLiteHelper(context)
-        prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
+
+    fun isOnline(): Boolean =
+        context.currentConnectivityState is ConnectionState.Available
 
     val dataSourceMode: DataSourceMode
         get() = if (prefs.getBoolean(KEY_API_MODE, true)) DataSourceMode.API else DataSourceMode.LOCAL
@@ -47,6 +54,12 @@ object SyncManager {
         sqliteHelper.guardarAccionPendiente(tipo, payload)
     }
 
+    /** Encola la acción y, si hay conexión disponible, lanza sincronización inmediatamente. */
+    fun guardarYSincronizar(tipo: String, payload: String) {
+        guardarAccionPendiente(tipo, payload)
+        sincronizar()
+    }
+
     fun handleOfflineCancel(orderId: Int) {
         val pendientes = sqliteHelper.obtenerAccionesPendientes()
         val pendingCreate = pendientes.find { accion ->
@@ -56,7 +69,7 @@ object SyncManager {
             sqliteHelper.eliminarAccionPendiente(pendingCreate.id)
             Log.d(TAG, "SyncManager: CREATE_ORDER local $orderId eliminado por cancelación offline")
         } else {
-            guardarAccionPendiente("CANCEL_ORDER", orderId.toString())
+            guardarYSincronizar("CANCEL_ORDER", orderId.toString())
         }
         val actualizados = sqliteHelper.obtenerPedidos().map { pedido ->
             if (pedido.id == orderId) pedido.copy(estado = "cancelado") else pedido
@@ -66,6 +79,10 @@ object SyncManager {
 
     fun sincronizar() {
         if (isSyncing) return
+        if (!isOnline()) {
+            Log.d(TAG, "SyncManager: Sin conexión, sincronización pospuesta.")
+            return
+        }
         isSyncing = true
         scope.launch {
             try {

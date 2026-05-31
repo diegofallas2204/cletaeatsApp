@@ -22,6 +22,18 @@ import com.cletaeats.ui.theme.*
 
 import com.cletaeats.ui.tracking.RepartidorTrackingMapComponent
 
+private val ActiveBlue = Color(0xFF1565C0)
+private val ActiveBlueSoft = Color(0xFFE3F2FD)
+
+private fun labelEstadoRepartidor(estado: String?): String = when (estado?.lowercase()) {
+    "aceptado"             -> "Aceptado — listo para retirar"
+    "camino", "en_camino"  -> "En camino"
+    "preparacion", "preparando" -> "En preparación"
+    "entregado"            -> "Entregado"
+    "suspendido", "cancelado" -> "Cancelado"
+    else                   -> estado ?: "Desconocido"
+}
+
 enum class RepartidorFilterStatus {
     ACTIVOS, ENTREGADOS, CANCELADOS
 }
@@ -35,15 +47,16 @@ fun RepartidorHistorialTab(
 ) {
     var filterStatus by remember { mutableStateOf(RepartidorFilterStatus.ACTIVOS) }
 
+    val estadosActivos = setOf("aceptado", "camino", "en_camino", "en camino", "preparando", "preparacion")
+
     fun normalizeStatus(estado: String?): String {
-        val rawStatus = estado ?: "pendiente"
-        return if (rawStatus == "suspendido") "cancelado" else rawStatus.lowercase()
+        val rawStatus = (estado ?: "preparacion").lowercase()
+        return if (rawStatus == "suspendido") "cancelado" else rawStatus
     }
 
     val filteredPedidos = when (filterStatus) {
         RepartidorFilterStatus.ACTIVOS -> pedidos.filter {
-            val status = normalizeStatus(it.estado)
-            status == "aceptado" || status == "en_camino" || status == "en camino"
+            normalizeStatus(it.estado) in estadosActivos
         }
         RepartidorFilterStatus.ENTREGADOS -> pedidos.filter {
             normalizeStatus(it.estado) == "entregado"
@@ -128,8 +141,9 @@ fun RepartidorHistorialTab(
                     items(filteredPedidos) { pedido ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = ActiveBlueSoft),
+                            shape = RoundedCornerShape(14.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                             onClick = { onPedidoSelect(pedido) }
                         ) {
                             Row(
@@ -139,12 +153,40 @@ fun RepartidorHistorialTab(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
-                                    Text(pedido.restauranteNombre ?: "Restaurante", fontWeight = FontWeight.Bold, color = TextDark)
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text("Pedido #${pedido.id}", color = TextMid, fontSize = 12.sp)
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Icon(Icons.Default.DirectionsBike, null, tint = ActiveBlue, modifier = Modifier.size(22.dp))
+                                    Spacer(Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            pedido.restauranteNombre ?: "Restaurante",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = ActiveBlue,
+                                            fontSize = 15.sp
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            "Pedido #${pedido.id}  •  ${labelEstadoRepartidor(pedido.estado)}",
+                                            color = ActiveBlue.copy(alpha = 0.75f),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
                                 }
-                                Text("Ver mapa", color = OrangeSoft, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        "CRC ${pedido.total ?: 0.0}",
+                                        fontWeight = FontWeight.Bold,
+                                        color = ActiveBlue,
+                                        fontSize = 13.sp
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        "Ver mapa →",
+                                        color = ActiveBlue,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                }
                             }
                         }
                     }
