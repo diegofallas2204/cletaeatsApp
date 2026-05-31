@@ -6,7 +6,8 @@ import com.cletaeats.network.RestauranteItem
 object PedidoMergeUtils {
 
     private val LOCAL_PRIORITY_STATUSES = setOf(
-        "aceptado", "en_camino", "en camino", "preparando", "entregado", "cancelado", "pendiente"
+        "aceptado", "camino", "en_camino", "en camino", "preparando",
+        "entregado", "cancelado", "suspendido", "pendiente"
     )
 
     fun mergeWithLocalCache(
@@ -15,12 +16,17 @@ object PedidoMergeUtils {
         restaurantes: List<RestauranteItem>
     ): List<PedidoItem> {
         val localById = localPedidos.associateBy { it.id }
+        val serverIds = serverPedidos.map { it.id }.toSet()
 
         val mergedFromServer = serverPedidos.map { pedido ->
             val local = localById[pedido.id]
             if (local != null) {
-                val mergedStatus = when (local.estado?.lowercase()) {
-                    in LOCAL_PRIORITY_STATUSES -> local.estado
+                val serverEstado = pedido.estado?.lowercase()
+                val mergedStatus = when {
+                    // Cancelación del cliente siempre gana: sobreescribe cualquier estado local
+                    serverEstado == "suspendido" -> pedido.estado
+                    // Estado que el repartidor/cliente modificó offline tiene prioridad
+                    local.estado?.lowercase() in LOCAL_PRIORITY_STATUSES -> local.estado
                     else -> pedido.estado ?: local.estado
                 }
                 pedido.copy(
@@ -32,7 +38,14 @@ object PedidoMergeUtils {
             }
         }
 
-        return (mergedFromServer + localPedidos)
+        // Solo preservar pedidos locales que NO están en el servidor si tienen un estado
+        // que el usuario generó activamente (offline). Pedidos en "preparacion"/"pendiente"
+        // que el servidor dejó de devolver ya no existen como disponibles (ej: suspendidos).
+        val localOnlyToKeep = localPedidos.filter { localPedido ->
+            localPedido.id !in serverIds && localPedido.estado?.lowercase() in LOCAL_PRIORITY_STATUSES
+        }
+
+        return (mergedFromServer + localOnlyToKeep)
             .distinctBy { it.id }
             .map { pedido ->
                 pedido.copy(

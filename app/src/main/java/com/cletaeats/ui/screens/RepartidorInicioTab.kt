@@ -34,16 +34,15 @@ private val ActiveBlueSoft = Color(0xFFE3F2FD)
 @Composable
 fun RepartidorInicioTab(
     pedidos: List<PedidoItem>,
-    isRefreshing: Boolean,
     tieneActivo: Boolean,
     pedidoActivo: PedidoItem?,
     onAcceptOrder: (PedidoItem) -> Unit,
-    onRefresh: () -> Unit,
     onVerActivo: () -> Unit = {}
 ) {
     var sortOption by remember { mutableStateOf(OrderSortOption.RECIENTES) }
 
-    val estadosDisponibles = setOf("preparacion")
+    // "pendiente" cubre órdenes recién creadas por el cliente antes de que el restaurante las confirme
+    val estadosDisponibles = setOf("preparacion", "pendiente")
     val disponibles = pedidos.filter {
         val est = it.estado?.lowercase() ?: ""
         est in estadosDisponibles
@@ -116,24 +115,12 @@ fun RepartidorInicioTab(
             }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Pedidos Disponibles",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = BrownDark
-            )
-            TextButton(
-                onClick = onRefresh,
-                colors = ButtonDefaults.textButtonColors(contentColor = BrownMid)
-            ) {
-                Text(if (isRefreshing) "Actualizando..." else "Actualizar")
-            }
-        }
+        Text(
+            text = "Pedidos Disponibles",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = BrownDark
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
 

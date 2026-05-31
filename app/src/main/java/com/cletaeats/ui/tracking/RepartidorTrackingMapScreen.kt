@@ -49,7 +49,8 @@ fun RepartidorTrackingMapScreen(
             RepartidorTrackingMapComponent(
                 activo = pedido,
                 isSubmitting = isSubmitting,
-                onUpdateStatus = onUpdateStatus
+                onUpdateStatus = onUpdateStatus,
+                onBack = onBack
             )
         }
     }

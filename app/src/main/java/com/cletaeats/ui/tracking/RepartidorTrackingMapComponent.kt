@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material3.*
@@ -27,7 +28,8 @@ import org.osmdroid.views.MapView
 fun RepartidorTrackingMapComponent(
     activo: PedidoItem,
     isSubmitting: Boolean,
-    onUpdateStatus: (PedidoItem, String) -> Unit
+    onUpdateStatus: (PedidoItem, String) -> Unit,
+    onBack: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     
@@ -62,11 +64,16 @@ fun RepartidorTrackingMapComponent(
                 .padding(16.dp),
             contentAlignment = Alignment.BottomCenter
         ) {
-            RepartidorTrackingDetailsCard(
-                activo = activo,
-                isSubmitting = isSubmitting,
-                onUpdateStatus = onUpdateStatus
-            )
+            val estadoActual = activo.estado?.lowercase() ?: ""
+            if (estadoActual == "suspendido" || estadoActual == "cancelado") {
+                RepartidorPedidoCanceladoCard(activo = activo, onBack = onBack)
+            } else {
+                RepartidorTrackingDetailsCard(
+                    activo = activo,
+                    isSubmitting = isSubmitting,
+                    onUpdateStatus = onUpdateStatus
+                )
+            }
         }
     }
 }
@@ -159,6 +166,71 @@ private fun RepartidorTrackingDetailsCard(
                         color = Color.White
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RepartidorPedidoCanceladoCard(
+    activo: PedidoItem,
+    onBack: (() -> Unit)?
+) {
+    Card(
+        modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = WhiteCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(modifier = androidx.compose.ui.Modifier.padding(20.dp)) {
+            Row(
+                modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(activo.restauranteNombre ?: "Restaurante", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = BrownDark)
+                    Text("Pedido #${activo.id}", color = TextMid, fontSize = 14.sp)
+                }
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.Red.copy(alpha = 0.15f)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = androidx.compose.ui.Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.Cancel, null, tint = Color.Red, modifier = androidx.compose.ui.Modifier.size(14.dp))
+                        Spacer(modifier = androidx.compose.ui.Modifier.width(4.dp))
+                        Text("CANCELADO", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Red)
+                    }
+                }
+            }
+
+            Spacer(modifier = androidx.compose.ui.Modifier.height(16.dp))
+            HorizontalDivider(color = Cream)
+            Spacer(modifier = androidx.compose.ui.Modifier.height(12.dp))
+
+            Text(
+                text = "El cliente canceló este pedido.",
+                fontWeight = FontWeight.Medium,
+                color = TextMid,
+                fontSize = 14.sp
+            )
+            Text(
+                text = "Queda libre para aceptar un nuevo reparto.",
+                color = TextMid.copy(alpha = 0.75f),
+                fontSize = 13.sp
+            )
+
+            Spacer(modifier = androidx.compose.ui.Modifier.height(16.dp))
+            Button(
+                onClick = { onBack?.invoke() },
+                modifier = androidx.compose.ui.Modifier.fillMaxWidth().height(50.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = BrownDark),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Volver al inicio", fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
     }

@@ -626,7 +626,17 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         CancelOrderDialog(
             order = orderToCancel!!,
             onDismiss = { orderToCancel = null },
-            onConfirm = { orderToCancel = null; trackingVm.cancelOrder { refreshData() } }
+            onConfirm = {
+                val cancelledId = orderToCancel?.id
+                orderToCancel = null
+                // Refleja la cancelación de inmediato en la UI sin esperar el refresh
+                if (cancelledId != null) {
+                    historial = historial.map {
+                        if (it.id == cancelledId) it.copy(estado = "cancelado") else it
+                    }
+                }
+                trackingVm.cancelOrder { refreshData() }
+            }
         )
     }
 
