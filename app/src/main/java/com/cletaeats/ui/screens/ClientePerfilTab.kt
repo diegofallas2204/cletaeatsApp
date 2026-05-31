@@ -8,12 +8,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,12 +28,24 @@ import androidx.compose.ui.unit.sp
 import com.cletaeats.network.MetodoPago
 import com.cletaeats.network.SessionManager
 import com.cletaeats.network.UserProfile
+import com.cletaeats.storage.StorageThreshold
 import com.cletaeats.ui.theme.*
 
 @Composable
 fun ClientePerfilTab(
     tarjetas: List<MetodoPago>,
     userProfile: UserProfile?,
+    isApiMode: Boolean,
+    isCloudForced: Boolean,
+    onCloudForceToggle: (Boolean) -> Unit,
+    isDiskExpansionMode: Boolean,
+    onDiskExpansionToggle: (Boolean) -> Unit,
+    isOnline: Boolean,
+    currentThreshold: StorageThreshold,
+    onThresholdChange: (StorageThreshold) -> Unit,
+    localCount: Int,
+    cloudCount: Int,
+    onViewCloud: () -> Unit,
     onAddCardClick: () -> Unit,
     onDeleteCard: (Int) -> Unit
 ) {
@@ -245,6 +259,23 @@ fun ClientePerfilTab(
             }
         }
 
+        // ── Almacenamiento ───────────────────────────────────────────────────
+        item {
+            StorageSettingsCard(
+                isApiMode = isApiMode,
+                isCloudForced = isCloudForced,
+                onCloudForceToggle = onCloudForceToggle,
+                isDiskExpansionMode = isDiskExpansionMode,
+                onDiskExpansionToggle = onDiskExpansionToggle,
+                isOnline = isOnline,
+                currentThreshold = currentThreshold,
+                onThresholdChange = onThresholdChange,
+                localCount = localCount,
+                cloudCount = cloudCount,
+                onViewCloud = onViewCloud
+            )
+        }
+
         item { Spacer(Modifier.height(80.dp)) }
     }
 
@@ -267,6 +298,177 @@ fun ClientePerfilTab(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun StorageSettingsCard(
+    isApiMode: Boolean,
+    isCloudForced: Boolean,
+    onCloudForceToggle: (Boolean) -> Unit,
+    isDiskExpansionMode: Boolean,
+    onDiskExpansionToggle: (Boolean) -> Unit,
+    isOnline: Boolean,
+    currentThreshold: StorageThreshold,
+    onThresholdChange: (StorageThreshold) -> Unit,
+    localCount: Int,
+    cloudCount: Int,
+    onViewCloud: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = WhiteCard),
+        border = BorderStroke(1.dp, CreamDark)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+
+            // ── Encabezado + badge de modo actual ─────────────────────
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Storage, contentDescription = null, tint = OrangeSoft, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Almacenamiento", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = BrownDark)
+                Spacer(Modifier.weight(1f))
+                val (badgeColor, badgeText) = when {
+                    !isOnline           -> Pair(OrangeSoft, "SIN CONEXIÓN")
+                    isCloudForced       -> Pair(CloudBlue, "NUBE")
+                    isDiskExpansionMode -> Pair(BrownMid, "EXPANSIÓN")
+                    else                -> Pair(GreenAccent, "API")
+                }
+                Surface(color = badgeColor.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) {
+                    Text(
+                        badgeText,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = badgeColor
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                when {
+                    !isOnline           -> "Sin internet · Local ilimitado"
+                    isCloudForced       -> "Pedidos directo a la nube simulada"
+                    isDiskExpansionMode -> "Local hasta ${currentThreshold.limit} pedidos, luego nube · se reinicia al cerrar"
+                    else                -> "Pedidos al servidor remoto (modo normal)"
+                },
+                fontSize = 12.sp, color = TextMid
+            )
+            Spacer(Modifier.height(16.dp))
+
+            // ── Toggle: Expansión de disco + cloud ────────────────────
+            val expansionDisabled = !isOnline || isCloudForced
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Storage, contentDescription = null,
+                        tint = if (isDiskExpansionMode) BrownMid else TextMid.copy(alpha = if (expansionDisabled) 0.4f else 1f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            "Expansión de disco con cloud",
+                            fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                            color = if (expansionDisabled) TextMid.copy(alpha = 0.4f) else TextDark
+                        )
+                        Text(
+                            when {
+                                !isOnline           -> "Requiere internet"
+                                isCloudForced       -> "Incompatible con nube forzada"
+                                else                -> "Local (${currentThreshold.limit} máx) → nube · se reinicia al cerrar"
+                            },
+                            fontSize = 12.sp,
+                            color = if (expansionDisabled) TextMid.copy(alpha = 0.4f) else TextMid
+                        )
+                    }
+                }
+                Switch(
+                    checked = isDiskExpansionMode,
+                    onCheckedChange = onDiskExpansionToggle,
+                    enabled = !expansionDisabled,
+                    colors = SwitchDefaults.colors(checkedThumbColor = BrownMid, checkedTrackColor = BrownLight.copy(alpha = 0.4f))
+                )
+            }
+
+            // Selector de capacidad local (solo en expansión)
+            if (isDiskExpansionMode) {
+                Spacer(Modifier.height(8.dp))
+                Text("Capacidad local: $localCount / ${currentThreshold.limit}", fontSize = 12.sp, color = TextMid)
+                Spacer(Modifier.height(6.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StorageThreshold.entries.forEach { option ->
+                        FilterChip(
+                            selected = currentThreshold == option,
+                            onClick = { onThresholdChange(option) },
+                            label = { Text("${option.limit}", fontSize = 11.sp) },
+                            modifier = Modifier.weight(1f),
+                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = BrownMid, selectedLabelColor = WhiteCard)
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = CreamDark)
+
+            // ── Toggle: Nube forzada ───────────────────────────────────
+            val cloudDisabled = !isOnline || isDiskExpansionMode
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Cloud, contentDescription = null,
+                        tint = if (isCloudForced) CloudBlue else TextMid.copy(alpha = if (cloudDisabled) 0.4f else 1f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            "Forzar nube simulada",
+                            fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                            color = if (cloudDisabled) TextMid.copy(alpha = 0.4f) else TextDark
+                        )
+                        Text(
+                            when {
+                                !isOnline           -> "Requiere internet"
+                                isDiskExpansionMode -> "Incompatible con expansión de disco"
+                                else                -> "Todos los pedidos van a la nube · se reinicia al cerrar"
+                            },
+                            fontSize = 12.sp,
+                            color = if (cloudDisabled) TextMid.copy(alpha = 0.4f) else TextMid
+                        )
+                    }
+                }
+                Switch(
+                    checked = isCloudForced,
+                    onCheckedChange = onCloudForceToggle,
+                    enabled = !cloudDisabled,
+                    colors = SwitchDefaults.colors(checkedThumbColor = CloudBlue, checkedTrackColor = CloudBlueSoft)
+                )
+            }
+
+            // ── Ver nube ───────────────────────────────────────────────
+            HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = CreamDark)
+            OutlinedButton(
+                onClick = onViewCloud,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = CloudBlue),
+                border = BorderStroke(1.dp, CloudBlue)
+            ) {
+                Icon(Icons.Default.Cloud, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (cloudCount > 0) "Ver nube simulada ($cloudCount pedidos)" else "Ver nube simulada",
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
 

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import com.cletaeats.ui.theme.CloudBlue
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,6 +36,26 @@ private fun colorEstado(estado: String?): Color = when ((estado ?: "preparacion"
     "camino", "en_camino", "en camino" -> OrangeSoft
     "aceptado", "preparacion" -> BrownMid
     else          -> Color.Gray
+}
+
+fun getCategoryColor(tipoComida: String?): androidx.compose.ui.graphics.Color {
+    if (tipoComida == null) return OrangeSoft
+    val lower = tipoComida.lowercase()
+    return when {
+        lower.contains("pizza")                                     -> RedAccent
+        lower.contains("burger") || lower.contains("hamburguesa")   -> OrangeSoft
+        lower.contains("pasta") || lower.contains("italiana")       -> BrownLight
+        lower.contains("ensalada") || lower.contains("saludable")   -> GreenAccent
+        lower.contains("sushi") || lower.contains("japonesa")       -> BlueAccent
+        lower.contains("café") || lower.contains("cafe")            -> BrownMid
+        lower.contains("postre") || lower.contains("helado")        -> PinkSoft
+        lower.contains("china") || lower.contains("asiatica")       -> RedAccent
+        lower.contains("marisco") || lower.contains("ceviche")      -> BlueAccent
+        lower.contains("bebida") || lower.contains("jugo")          -> BlueAccent
+        lower.contains("pollo") || lower.contains("chicken")        -> OrangeSoft
+        lower.contains("taco") || lower.contains("mexicana")        -> GreenAccent
+        else                                                         -> OrangeSoft
+    }
 }
 
 fun getCategoryIcon(tipoComida: String?): ImageVector {
@@ -145,7 +166,7 @@ fun RestaurantGridItem(
                     imageVector = getCategoryIcon(rest.tipoComida),
                     contentDescription = rest.tipoComida,
                     modifier = Modifier.size(28.dp),
-                    tint = BrownDark
+                    tint = getCategoryColor(rest.tipoComida)
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -173,9 +194,16 @@ fun RestaurantGridItem(
     }
 }
 
+private fun inferSource(id: Int, cloudIds: Set<Int>): String = when {
+    id in cloudIds  -> "CLOUD"
+    id in 1000..9999 -> "LOCAL"
+    else             -> "API"
+}
+
 @Composable
 fun OrderCard(
     pedido: PedidoItem,
+    cloudPedidoIds: Set<Int> = emptySet(),
     onTrackClick: () -> Unit = {},
     onCancelClick: () -> Unit = {},
     onRateClick: (() -> Unit)? = null,
@@ -185,6 +213,23 @@ fun OrderCard(
     val esEntregado = estado == "entregado"
     val esCancelado = estado == "suspendido" || estado == "cancelado"
     val esCancelable = !esEntregado && !esCancelado
+
+    val source = inferSource(pedido.id, cloudPedidoIds)
+    val sourceIcon = when (source) {
+        "CLOUD" -> Icons.Default.Cloud
+        "LOCAL" -> Icons.Default.InsertDriveFile
+        else    -> Icons.Default.Language
+    }
+    val sourceColor = when (source) {
+        "CLOUD" -> CloudBlue
+        "LOCAL" -> OrangeSoft
+        else    -> GreenAccent
+    }
+    val sourceLabel = when (source) {
+        "CLOUD" -> "Nube"
+        "LOCAL" -> "Local"
+        else    -> "API"
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth().clickable { if (!esEntregado) onTrackClick() },
@@ -197,11 +242,27 @@ fun OrderCard(
                 Icon(
                     imageVector = if (esEntregado) Icons.Default.CheckCircle else Icons.Default.ShoppingCart,
                     contentDescription = "Pedido",
-                    tint = if (esEntregado) GreenAccent else BrownDark,
+                    tint = if (esEntregado) GreenAccent else OrangeSoft,
                     modifier = Modifier.size(28.dp)
                 )
                 Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
-                    Text("Pedido #${pedido.id}", fontWeight = FontWeight.Bold, color = BrownDark)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Pedido #${pedido.id}", fontWeight = FontWeight.Bold, color = BrownDark)
+                        // Badge de fuente de almacenamiento
+                        Surface(
+                            color = sourceColor.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(sourceIcon, contentDescription = sourceLabel, tint = sourceColor, modifier = Modifier.size(10.dp))
+                                Text(sourceLabel, fontSize = 9.sp, color = sourceColor, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                     Text(pedido.restauranteNombre ?: "Restaurante", style = MaterialTheme.typography.bodySmall, color = TextMid)
                     Text(
                         text = displayEstado(pedido.estado),
@@ -216,7 +277,7 @@ fun OrderCard(
                     if (esCancelable) {
                         Spacer(Modifier.height(4.dp))
                         IconButton(onClick = onCancelClick, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Close, "Cancelar", tint = Color.Red, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Close, "Cancelar", tint = RedAccent, modifier = Modifier.size(16.dp))
                         }
                     }
                 }

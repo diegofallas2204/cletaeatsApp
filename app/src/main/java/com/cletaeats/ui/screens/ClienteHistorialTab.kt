@@ -32,7 +32,8 @@ fun ClienteHistorialTab(
     onRateClick: (PedidoItem) -> Unit = {},
     pedidosValorados: Map<Int, Int> = emptyMap(),
     filterStatus: OrderFilterStatus = OrderFilterStatus.ACTIVOS,
-    onFilterChange: (OrderFilterStatus) -> Unit = {}
+    onFilterChange: (OrderFilterStatus) -> Unit = {},
+    cloudPedidoIds: Set<Int> = emptySet()
 ) {
     fun normalizeStatus(estado: String?): String {
         val rawStatus = (estado ?: "preparacion").lowercase()
@@ -121,6 +122,7 @@ fun ClienteHistorialTab(
                     val ratingDado = pedidosValorados[pedido.id]
                     OrderCard(
                         pedido = pedido,
+                        cloudPedidoIds = cloudPedidoIds,
                         onTrackClick = { onTrackClick(pedido) },
                         onCancelClick = { onCancelClick(pedido) },
                         onRateClick = if (esEntregado && ratingDado == null) {

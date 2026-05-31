@@ -4,6 +4,9 @@ import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.TwoWheeler
+import androidx.compose.ui.unit.dp
+import com.cletaeats.ui.theme.OrangeSoft
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -211,7 +214,12 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("🛵 CLETAEATS - REPARTIDOR", fontWeight = FontWeight.Bold, color = Color.White) },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.TwoWheeler, contentDescription = null, tint = OrangeSoft, modifier = Modifier.size(24.dp))
+                            Text("CLETAEATS · REPARTIDOR", fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    },
                     actions = {
                         IconButton(onClick = onLogout) {
                             Icon(Icons.Default.Logout, "Logout", tint = Color.White)

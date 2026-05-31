@@ -16,53 +16,63 @@ object StorageOrchestrator {
     private lateinit var prefs: SharedPreferences
     private lateinit var sqliteHelper: CletaSQLiteHelper
 
+    /**
+     * En memoria únicamente — se resetea al cerrar la app.
+     * No se persiste en SharedPreferences.
+     */
+    var isDiskExpansionMode: Boolean = false
+        set(value) {
+            field = value
+            if (value) {
+                // Expansión usa umbral pequeño fijo (5 pedidos)
+                LocalTransactionCounter.threshold = StorageThreshold.PEQUENO
+            }
+            Log.d(TAG, "StorageOrchestrator: diskExpansion = $value")
+        }
+
     fun init(context: Context) {
         prefs = context.applicationContext
             .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         sqliteHelper = CletaSQLiteHelper(context.applicationContext)
+        // Arrancar siempre en estado limpio: API activo, cloud/expansión desactivados
+        isDiskExpansionMode = false
+        isCloudForced = false
+        SyncManager.setApiMode(true)
+        Log.d(TAG, "StorageOrchestrator: init → API=ON, cloud=OFF, expansion=OFF")
     }
 
     var isCloudForced: Boolean
         get() = prefs.getBoolean(KEY_CLOUD_FORCED, false)
         set(value) {
             prefs.edit().putBoolean(KEY_CLOUD_FORCED, value).apply()
-            Log.d(TAG, "StorageOrchestrator: cloud forzado = $value")
+            Log.d(TAG, "StorageOrchestrator: cloudForced = $value")
         }
 
     /**
-     * Lógica central de decisión de modo.
+     * Determina el modo de almacenamiento según el estado actual.
      *
-     * Sin internet → LOCAL sin límite (cloud no disponible).
-     * Con internet + toggle cloud → CLOUD_FORCED.
-     * Con internet + API activa → API.
-     * Con internet + API caída + local lleno → CLOUD_OVERFLOW.
-     * Con internet + API caída + local disponible → LOCAL.
+     * Sin internet          → LOCAL (ilimitado, sin API ni cloud)
+     * Cloud forzado         → CLOUD_FORCED
+     * Expansión de disco    → DISK_EXPANSION o CLOUD_OVERFLOW según contador
+     * Default (con internet)→ API
      */
     fun determinarModo(): StorageMode {
         val online = SyncManager.isOnline()
 
-        if (!online) {
-            // Auto-apagar cloud forzado si se fue el internet
-            if (isCloudForced) isCloudForced = false
-            return StorageMode.LOCAL
-        }
+        if (!online) return StorageMode.LOCAL
 
         if (isCloudForced) return StorageMode.CLOUD_FORCED
 
-        if (SyncManager.isApiMode) return StorageMode.API
-
-        // API caída, estamos en modo LOCAL
-        return if (LocalTransactionCounter.isLocalFull) {
-            StorageMode.CLOUD_OVERFLOW
-        } else {
-            StorageMode.LOCAL
+        if (isDiskExpansionMode) {
+            return if (LocalTransactionCounter.isLocalFull)
+                StorageMode.CLOUD_OVERFLOW
+            else
+                StorageMode.DISK_EXPANSION
         }
+
+        return StorageMode.API
     }
 
-    /**
-     * Guarda un pedido en el destino correcto según el modo actual.
-     * Retorna el modo donde fue guardado para que el llamador pueda reaccionar.
-     */
     fun guardarPedidoLocal(pedido: PedidoItem, sqlHelper: CletaSQLiteHelper? = null): StorageMode {
         val modo = determinarModo()
         val helper = sqlHelper ?: sqliteHelper
@@ -70,16 +80,16 @@ object StorageOrchestrator {
         return when {
             modo.isCloud() -> {
                 CloudPedidoStorage.guardar(pedido)
-                Log.d(TAG, "StorageOrchestrator: Pedido #${pedido.id} → NUBE (modo=$modo, cloud=${CloudPedidoStorage.count})")
+                Log.d(TAG, "StorageOrchestrator: Pedido #${pedido.id} → NUBE ($modo)")
                 modo
             }
             else -> {
                 val actuales = helper.obtenerPedidos().toMutableList()
                 actuales.add(0, pedido)
                 helper.guardarPedidos(actuales)
-                LocalTransactionCounter.increment()
+                if (isDiskExpansionMode) LocalTransactionCounter.increment()
                 Log.d(TAG, "StorageOrchestrator: Pedido #${pedido.id} → LOCAL (${LocalTransactionCounter.count}/${LocalTransactionCounter.threshold.limit})")
-                StorageMode.LOCAL
+                modo
             }
         }
     }
