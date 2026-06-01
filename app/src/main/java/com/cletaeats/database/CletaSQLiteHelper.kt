@@ -77,6 +77,7 @@ class CletaSQLiteHelper(context: Context) :
             )
             """.trimIndent()
         )
+        // esta tabla es el núcleo del modo offline: guarda todo lo que no se pudo enviar a la API
         db.execSQL(
             """
             CREATE TABLE $TABLE_PENDING_ACTIONS (
@@ -89,6 +90,7 @@ class CletaSQLiteHelper(context: Context) :
         )
     }
 
+    // al cambiar de versión tiramos todo y recreamos — los datos offline se sincronizan de nuevo con la API
     override fun onUpgrade(
         db: SQLiteDatabase,
         oldVersion: Int,
@@ -260,6 +262,7 @@ class CletaSQLiteHelper(context: Context) :
         guardarPedidos(actualizados)
     }
 
+    // cuando el backend confirma el pedido y asigna su ID real, hay que actualizarlo en todas las acciones pendientes que usaban el ID local temporal
     fun remapOrderIdInPendingActions(oldId: Int, newId: Int) {
         val acciones = obtenerAccionesPendientes()
         acciones.forEach { accion ->

@@ -179,7 +179,8 @@ object SyncManager {
                         Log.d(TAG, "SyncManager: Acción ${accion.tipo} (id: ${accion.id}) sincronizada con éxito.")
                     } else {
                         Log.w(TAG, "SyncManager: Deteniendo sincronización temporalmente por fallo en la red.")
-                        break // Si falla una, detenemos la cola para mantener el orden secuencial
+                        // paramos toda la cola porque el orden de las acciones importa (no se puede entregar antes de crear)
+                        break
                     }
                 }
             } catch (e: Exception) {

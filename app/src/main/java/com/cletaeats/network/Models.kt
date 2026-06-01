@@ -56,6 +56,7 @@ data class LoginData(
 )
 
 // --- GENERIC RESPONSE ---
+// todos los endpoints del backend responden con este mismo envoltorio — si success es false, data puede venir null
 data class CletaResponse<T>(
     @SerializedName(value = "success", alternate = ["exito"])
     val success: Boolean,
@@ -86,6 +87,7 @@ data class CartItem(
     var agrandado: Boolean = false
 )
 
+// el nombre del restaurante y otros campos cambian según el endpoint que llames, de ahí los alternates
 data class PedidoItem(
     val id: Int,
     @SerializedName(value = "restauranteNombre", alternate = ["restaurante_nombre", "nombre_restaurante"])

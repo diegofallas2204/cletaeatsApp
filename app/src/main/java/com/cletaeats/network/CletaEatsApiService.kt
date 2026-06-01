@@ -92,6 +92,7 @@ interface CletaApiService {
     ): ResponseBody
 }
 
+// este objeto quedó de una versión anterior — el código activo usa CletaApiClient, pero SyncManager todavía lo referencia
 object CletaApi {
     private val retrofit = Retrofit.Builder()
         .addConverterFactory(GsonConverterFactory.create())
