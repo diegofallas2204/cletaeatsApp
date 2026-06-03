@@ -72,10 +72,15 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
 
             // Pedidos que el repartidor tenía activos pero el servidor dejó de devolver
             // → el cliente los canceló. Los marcamos "suspendido" para que aparezcan en Cancelados.
+            // Excepción: si hay un ASSIGN_ORDER pendiente, la asignación aún no sincronizó — no marcar suspendido.
             val estadosActivosRepartidor = setOf("aceptado", "camino", "en_camino", "en camino", "preparando")
+            val pendingAssignIds = sqliteHelper.obtenerAccionesPendientes()
+                .filter { it.tipo == "ASSIGN_ORDER" }
+                .mapNotNull { it.payload.toIntOrNull() }
+                .toSet()
             val localActualizadosSuspendidos = localPedidos.map { local ->
                 val estaActivo = local.estado?.lowercase() in estadosActivosRepartidor
-                if (estaActivo && local.id !in serverIds) {
+                if (estaActivo && local.id !in serverIds && local.id !in pendingAssignIds) {
                     Log.d("CletaEats", "Pedido #${local.id} ya no está en servidor → marcado suspendido")
                     local.copy(estado = "suspendido")
                 } else {
@@ -236,9 +241,14 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
     }
 
     if (pedidoSeleccionado != null) {
+        val restDir = remember(pedidoSeleccionado?.restauranteId) {
+            sqliteHelper.obtenerRestaurantes()
+                .find { it.id == pedidoSeleccionado?.restauranteId }?.direccion
+        }
         RepartidorTrackingMapScreen(
             pedido = pedidoSeleccionado!!,
             isSubmitting = isSubmittingStatus,
+            restaurantDireccion = restDir,
             onBack = {
                 pedidoSeleccionado = null
                 activeTab = RepartidorActiveTab.HISTORIAL

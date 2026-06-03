@@ -26,7 +26,8 @@ fun RepartidorTrackingMapScreen(
     pedido: PedidoItem,
     isSubmitting: Boolean,
     onBack: () -> Unit,
-    onUpdateStatus: (PedidoItem, String) -> Unit
+    onUpdateStatus: (PedidoItem, String) -> Unit,
+    restaurantDireccion: String? = null
 ) {
     Scaffold(
         topBar = {
@@ -50,7 +51,8 @@ fun RepartidorTrackingMapScreen(
                 activo = pedido,
                 isSubmitting = isSubmitting,
                 onUpdateStatus = onUpdateStatus,
-                onBack = onBack
+                onBack = onBack,
+                restaurantDireccion = restaurantDireccion
             )
         }
     }

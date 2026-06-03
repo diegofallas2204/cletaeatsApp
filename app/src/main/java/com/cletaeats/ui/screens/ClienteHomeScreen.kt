@@ -321,7 +321,11 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
             }
         )
     } else if (orderToTrack != null) {
-        val trackingVm = remember(orderToTrack) { TrackingViewModel(orderToTrack!!) }
+        val trackingVm = remember(orderToTrack) {
+            val restDir = sqliteHelper.obtenerRestaurantes()
+                .find { it.id == orderToTrack!!.restauranteId }?.direccion
+            TrackingViewModel(orderToTrack!!, restaurantDireccion = restDir)
+        }
         OrderTrackingMapScreen(viewModel = trackingVm, onBack = { orderToTrack = null; refreshData() }, onOrderCancelled = { orderToTrack = null; refreshData() })
     } else if (showOrderTracking) {
         OrderTrackingScreen(onBack = { showOrderTracking = false; orderToTrack = latestCreatedOrder; selectedRestaurant = null })
@@ -529,6 +533,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                                 latestCreatedOrder = PedidoItem(
                                     id = orderId,
                                     restauranteNombre = selectedRestaurant?.nombre ?: "Restaurante",
+                                    restauranteId = selectedRestaurant?.id,
                                     total = totalFinal,
                                     estado = "pendiente"
                                 )
@@ -555,6 +560,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         val localOrder = PedidoItem(
                             id = localOrderId,
                             restauranteNombre = selectedRestaurant?.nombre ?: "Restaurante",
+                            restauranteId = selectedRestaurant?.id,
                             total = totalFinal,
                             estado = "pendiente"
                         )
@@ -587,6 +593,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         val localOrder = PedidoItem(
                             id = localOrderId,
                             restauranteNombre = selectedRestaurant?.nombre ?: "Restaurante",
+                            restauranteId = selectedRestaurant?.id,
                             total = totalCost + (totalCost * 0.13) + 1500.0,
                             estado = "pendiente"
                         )

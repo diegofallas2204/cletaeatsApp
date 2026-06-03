@@ -1,5 +1,6 @@
 package com.cletaeats.ui.tracking
 
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -9,6 +10,7 @@ import com.cletaeats.network.CletaApi
 import com.cletaeats.network.PedidoItem
 import com.cletaeats.network.TokenManager
 import kotlinx.coroutines.launch
+import org.osmdroid.util.GeoPoint
 
 sealed interface CancellationState {
     object Idle : CancellationState
@@ -17,10 +19,29 @@ sealed interface CancellationState {
     data class Error(val error: String) : CancellationState
 }
 
-class TrackingViewModel(val pedido: PedidoItem) : ViewModel() {
+class TrackingViewModel(
+    val pedido: PedidoItem,
+    restaurantDireccion: String? = null
+) : ViewModel() {
+
+    val restaurantPoint: GeoPoint = TrackingCoordinates.forRestaurante(pedido.restauranteNombre, restaurantDireccion)
+    val clientePoint: GeoPoint = TrackingCoordinates.CLIENTE_POINT
 
     var cancellationState by mutableStateOf<CancellationState>(CancellationState.Idle)
         private set
+
+    var routePoints by mutableStateOf<List<GeoPoint>>(emptyList())
+        private set
+
+    init {
+        fetchRoute()
+    }
+
+    private fun fetchRoute() {
+        viewModelScope.launch {
+            routePoints = TrackingCoordinates.fetchOsrmRoute(restaurantPoint, clientePoint)
+        }
+    }
 
     fun cancelOrder(onDone: () -> Unit) {
         cancellationState = CancellationState.Loading
@@ -36,12 +57,12 @@ class TrackingViewModel(val pedido: PedidoItem) : ViewModel() {
                     cancellationState = CancellationState.Success(response.data ?: "Pedido cancelado")
                     onDone()
                 } else {
-                    // Servidor rechazó la cancelación: encolar para reintento
                     com.cletaeats.database.SyncManager.handleOfflineCancel(pedido.id)
                     cancellationState = CancellationState.Success("Cancelación guardada, se enviará al servidor pronto")
                     onDone()
                 }
             } catch (e: Exception) {
+                Log.e("CletaEats", "Error cancelando pedido: ${e.message}")
                 com.cletaeats.database.SyncManager.handleOfflineCancel(pedido.id)
                 cancellationState = CancellationState.Success("Cancelación guardada localmente (sin conexión)")
                 onDone()
