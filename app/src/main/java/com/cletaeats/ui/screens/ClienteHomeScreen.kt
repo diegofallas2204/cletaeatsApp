@@ -23,6 +23,7 @@ import com.cletaeats.ui.components.*
 import com.cletaeats.ui.theme.*
 import com.cletaeats.ui.tracking.*
 import com.cletaeats.utils.LocalCacheManager
+import com.cletaeats.utils.LocalOrderUtils
 import com.cletaeats.utils.OrderUtils
 import com.cletaeats.utils.PedidoMergeUtils
 import com.cletaeats.utils.currentConnectivityState
@@ -133,6 +134,21 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
     LaunchedEffect(Unit) {
         com.cletaeats.database.SyncManager.syncCompleted.collect {
             refreshData()
+        }
+    }
+
+    // Garantía de consistencia: si el carrito queda vacío por cualquier causa
+    // (onBack, fallo de red, cambio de restaurante) cerrar el CartSummary y el PaymentDialog.
+    LaunchedEffect(cartItems) {
+        if (cartItems.isEmpty()) {
+            showCartSummary = false
+            showPaymentDialog = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        com.cletaeats.database.SyncManager.sessionExpired.collect {
+            onLogout()
         }
     }
 
@@ -463,7 +479,9 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         )
     }
 
-    if (showPaymentDialog && (cartItems.isNotEmpty() && selectedRestaurant != null && activeTab == ActiveTab.INICIO)) {
+    if (showPaymentDialog) {
+    val isOrderMode = cartItems.isNotEmpty() && selectedRestaurant != null && activeTab == ActiveTab.INICIO
+    if (isOrderMode) {
         PaymentDialog(
             isSubmitting = isSubmittingOrder, tarjetas = tarjetasGuardadas,
             onDismiss = { showPaymentDialog = false },
@@ -478,7 +496,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         } else {
                             tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
                             sqliteHelper.guardarTarjetas(tarjetasGuardadas)
-                            val json = com.google.gson.Gson().toJson(nuevaTarjeta)
+                            val json = com.google.gson.Gson().toJson(nuevaTarjeta.copy(cvv = ""))
                             com.cletaeats.database.SyncManager.guardarYSincronizar("SAVE_CARD", json)
                         }
                     } catch (e: Exception) {
@@ -533,7 +551,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
 
                         // ── Fallback LOCAL / CLOUD ───────────────────────────────
                         // (modo cloud/local explícito, o API caída con internet disponible)
-                        val localOrderId = (1000..9999).random()
+                        val localOrderId = LocalOrderUtils.generateLocalOrderId()
                         val localOrder = PedidoItem(
                             id = localOrderId,
                             restauranteNombre = selectedRestaurant?.nombre ?: "Restaurante",
@@ -565,7 +583,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         // Fallo de red total → guardar localmente sin importar el modo
                         Log.e("CletaEats", "Error al confirmar pedido: ${e.message}")
                         val totalCost = cartItems.sumOf { (it.combo.precio + if (it.agrandado) 1500.0 else 0.0) * it.cantidad }
-                        val localOrderId = (1000..9999).random()
+                        val localOrderId = LocalOrderUtils.generateLocalOrderId()
                         val localOrder = PedidoItem(
                             id = localOrderId,
                             restauranteNombre = selectedRestaurant?.nombre ?: "Restaurante",
@@ -585,9 +603,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                 }
             }
         )
-    }
-
-    if (showPaymentDialog && (cartItems.isEmpty() || activeTab == ActiveTab.PERFIL)) {
+    } else {
         PaymentDialog(
             isSubmitting = false, tarjetas = tarjetasGuardadas,
             onDismiss = { showPaymentDialog = false },
@@ -603,7 +619,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         } else {
                             tarjetasGuardadas = tarjetasGuardadas + nuevaTarjeta
                             sqliteHelper.guardarTarjetas(tarjetasGuardadas)
-                            val json = com.google.gson.Gson().toJson(nuevaTarjeta)
+                            val json = com.google.gson.Gson().toJson(nuevaTarjeta.copy(cvv = ""))
                             com.cletaeats.database.SyncManager.guardarYSincronizar("SAVE_CARD", json)
                             showPaymentDialog = false
                         }
@@ -620,6 +636,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
             onConfirm = { showPaymentDialog = false }
         )
     }
+    } // end if (showPaymentDialog)
 
     if (orderToCancel != null) {
         val trackingVm = remember(orderToCancel) { TrackingViewModel(orderToCancel!!) }
@@ -662,9 +679,10 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                         }
                     } catch (e: Exception) {
                         android.util.Log.e("CletaEats", "Error enviando valoración: ${e.message}")
-                        // Guardar localmente igual para que la UI no permita revalorar
+                        // Solo bloquear revaloración si el rating es válido (≥1).
+                        // Con rating=0 el fallo fue antes de seleccionar — dejar al usuario reintentar.
                         val idValorado = pedidoAValorar?.id
-                        if (idValorado != null) {
+                        if (idValorado != null && rating >= 1) {
                             pedidosValorados = guardarValoracion(idValorado, rating, pedidosValorados)
                         }
                         pedidoAValorar = null

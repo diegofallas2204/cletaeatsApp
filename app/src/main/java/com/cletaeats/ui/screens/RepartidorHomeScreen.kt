@@ -132,6 +132,22 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
         }
     }
 
+    LaunchedEffect(Unit) {
+        com.cletaeats.database.SyncManager.sessionExpired.collect {
+            onLogout()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        com.cletaeats.database.SyncManager.assignConflict.collect { conflictedOrderId ->
+            // Otro repartidor se adelantó — revertir estado local y refrescar disponibles
+            applyEstadoLocally(conflictedOrderId, "pendiente")
+            if (pedidoSeleccionado?.id == conflictedOrderId) pedidoSeleccionado = null
+            refreshData()
+            Log.w("CletaEats", "RepartidorHome: pedido $conflictedOrderId ya fue asignado a otro repartidor.")
+        }
+    }
+
     fun applyEstadoLocally(pedidoId: Int, nuevoEstado: String) {
         pedidos = pedidos.map { if (it.id == pedidoId) it.copy(estado = nuevoEstado) else it }
         if (pedidoSeleccionado?.id == pedidoId) {
