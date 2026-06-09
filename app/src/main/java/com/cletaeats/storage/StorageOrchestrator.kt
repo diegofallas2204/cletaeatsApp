@@ -22,7 +22,9 @@ object StorageOrchestrator {
      */
     var isDiskExpansionMode: Boolean = false
         set(value) {
+            val wasEnabled = field
             field = value
+            if (wasEnabled && !value) flushCloudToLocal()
             if (value) {
                 // Expansión usa umbral pequeño fijo (5 pedidos)
                 LocalTransactionCounter.threshold = StorageThreshold.PEQUENO
@@ -44,7 +46,9 @@ object StorageOrchestrator {
     var isCloudForced: Boolean
         get() = prefs.getBoolean(KEY_CLOUD_FORCED, false)
         set(value) {
+            val wasEnabled = prefs.getBoolean(KEY_CLOUD_FORCED, false)
             prefs.edit().putBoolean(KEY_CLOUD_FORCED, value).apply()
+            if (wasEnabled && !value) flushCloudToLocal()
             Log.d(TAG, "StorageOrchestrator: cloudForced = $value")
         }
 
@@ -71,6 +75,26 @@ object StorageOrchestrator {
         }
 
         return StorageMode.API
+    }
+
+    /**
+     * Migra pedidos en memoria de CloudPedidoStorage a SQLite al desactivar un modo cloud.
+     * No reenvía al servidor (el payload de items no se conservó), pero evita que se pierdan
+     * al cerrar la app. Después lanza sincronización por si hay otras acciones pendientes.
+     */
+    private fun flushCloudToLocal() {
+        val pedidosCloud = CloudPedidoStorage.obtenerTodos()
+        if (pedidosCloud.isEmpty()) return
+        val existingIds = sqliteHelper.obtenerPedidos().map { it.id }.toSet()
+        val nuevos = pedidosCloud.filter { it.id !in existingIds }
+        if (nuevos.isNotEmpty()) {
+            val actuales = sqliteHelper.obtenerPedidos().toMutableList()
+            actuales.addAll(0, nuevos)
+            sqliteHelper.guardarPedidos(actuales)
+            Log.d(TAG, "StorageOrchestrator: ${nuevos.size} pedido(s) migrado(s) de cloud a local al desactivar modo cloud.")
+        }
+        CloudPedidoStorage.vaciar()
+        SyncManager.sincronizar()
     }
 
     fun guardarPedidoLocal(pedido: PedidoItem, sqlHelper: CletaSQLiteHelper? = null): StorageMode {

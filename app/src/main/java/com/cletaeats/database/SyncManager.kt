@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import com.cletaeats.network.*
+import com.cletaeats.network.SessionManager
 import com.cletaeats.utils.ConnectionState
 import com.cletaeats.utils.currentConnectivityState
 import com.google.gson.Gson
@@ -13,6 +14,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import java.lang.Exception
+import java.util.concurrent.atomic.AtomicBoolean
 
 object SyncManager {
     private const val TAG = "CletaEats"
@@ -23,10 +25,18 @@ object SyncManager {
     private lateinit var prefs: SharedPreferences
     private val gson = Gson()
     private val scope = CoroutineScope(Dispatchers.IO)
-    private var isSyncing = false
+    private val isSyncing = AtomicBoolean(false)
+    private val failCounts = mutableMapOf<Int, Int>()
+    private const val MAX_RETRIES = 3
 
-    private val _syncCompleted = kotlinx.coroutines.flow.MutableSharedFlow<Unit>()
+    private val _syncCompleted = MutableSharedFlow<Unit>()
     val syncCompleted = _syncCompleted.asSharedFlow()
+
+    private val _sessionExpired = MutableSharedFlow<Unit>()
+    val sessionExpired = _sessionExpired.asSharedFlow()
+
+    private val _assignConflict = MutableSharedFlow<Int>()
+    val assignConflict = _assignConflict.asSharedFlow()
 
     enum class DataSourceMode { API, LOCAL }
 
@@ -78,18 +88,17 @@ object SyncManager {
     }
 
     fun sincronizar() {
-        if (isSyncing) return
         if (!isOnline()) {
             Log.d(TAG, "SyncManager: Sin conexión, sincronización pospuesta.")
             return
         }
-        isSyncing = true
+        if (!isSyncing.compareAndSet(false, true)) return
         scope.launch {
             try {
                 val token = TokenManager.token
                 if (token == null) {
                     Log.d(TAG, "SyncManager: No hay token de autenticación disponible para sincronizar.")
-                    isSyncing = false
+                    isSyncing.set(false)
                     return@launch
                 }
 
@@ -97,7 +106,7 @@ object SyncManager {
                 val acciones = sqliteHelper.obtenerAccionesPendientes()
                 if (acciones.isEmpty()) {
                     Log.d(TAG, "SyncManager: No hay acciones pendientes de sincronización.")
-                    isSyncing = false
+                    isSyncing.set(false)
                     return@launch
                 }
 
@@ -148,8 +157,24 @@ object SyncManager {
                                 val orderId = accion.payload.toIntOrNull()
                                 if (orderId != null) {
                                     val response = CletaApi.retrofitService.asignarPedido(bearerToken, orderId)
-                                    handled = response.success
-                                    if (!handled) Log.w(TAG, "SyncManager: ASSIGN_ORDER falló: ${response.error}")
+                                    if (response.success) {
+                                        handled = true
+                                    } else {
+                                        val errorLower = response.error?.lowercase().orEmpty()
+                                        val isConflict = errorLower.contains("asignado") ||
+                                            errorLower.contains("conflict") ||
+                                            errorLower.contains("ya fue") ||
+                                            errorLower.contains("already")
+                                        if (isConflict) {
+                                            Log.w(TAG, "SyncManager: ASSIGN_ORDER conflicto — pedido $orderId ya fue asignado a otro repartidor, descartando.")
+                                            sqliteHelper.eliminarUpdateStatusPendiente(orderId)
+                                            _assignConflict.tryEmit(orderId)
+                                            handled = true // descartar sin reintentos
+                                        } else {
+                                            Log.w(TAG, "SyncManager: ASSIGN_ORDER falló: ${response.error}")
+                                            handled = false
+                                        }
+                                    }
                                 }
                             }
                             "UPDATE_ORDER_STATUS" -> {
@@ -170,22 +195,52 @@ object SyncManager {
                             }
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "SyncManager: Error al ejecutar acción ${accion.tipo}: ${e.message}")
-                        handled = false
+                        when {
+                            SyncErrorUtils.isUnauthorized(e) -> {
+                                Log.w(TAG, "SyncManager: Token expirado (401), cerrando sesión.")
+                                SessionManager.clearSession()
+                                _sessionExpired.tryEmit(Unit)
+                                return@launch
+                            }
+                            SyncErrorUtils.isConflict(e) && accion.tipo == "ASSIGN_ORDER" -> {
+                                val orderId = accion.payload.toIntOrNull()
+                                Log.w(TAG, "SyncManager: ASSIGN_ORDER conflicto (409) — pedido $orderId ya asignado, descartando.")
+                                if (orderId != null) {
+                                    sqliteHelper.eliminarUpdateStatusPendiente(orderId)
+                                    _assignConflict.tryEmit(orderId)
+                                }
+                                handled = true // descartar sin reintentos
+                            }
+                            else -> {
+                                Log.e(TAG, "SyncManager: Error al ejecutar acción ${accion.tipo}: ${e.message}")
+                                handled = false
+                            }
+                        }
                     }
 
                     if (handled) {
                         sqliteHelper.eliminarAccionPendiente(accion.id)
+                        failCounts.remove(accion.id)
                         Log.d(TAG, "SyncManager: Acción ${accion.tipo} (id: ${accion.id}) sincronizada con éxito.")
                     } else {
-                        Log.w(TAG, "SyncManager: Deteniendo sincronización temporalmente por fallo en la red.")
-                        break // Si falla una, detenemos la cola para mantener el orden secuencial
+                        val intentos = (failCounts[accion.id] ?: 0) + 1
+                        failCounts[accion.id] = intentos
+                        if (intentos >= MAX_RETRIES) {
+                            // Fallo permanente (recurso eliminado, payload inválido, etc.) — descartar y continuar
+                            Log.e(TAG, "SyncManager: Acción ${accion.tipo} (id: ${accion.id}) falló $MAX_RETRIES veces consecutivas, descartando.")
+                            sqliteHelper.eliminarAccionPendiente(accion.id)
+                            failCounts.remove(accion.id)
+                        } else {
+                            // Fallo transitorio — detener la cola y reintentar en la próxima sincronización
+                            Log.w(TAG, "SyncManager: Acción ${accion.tipo} (id: ${accion.id}) falló (intento $intentos/$MAX_RETRIES), deteniendo cola.")
+                            break
+                        }
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "SyncManager: Error crítico durante sincronización: ${e.message}")
             } finally {
-                isSyncing = false
+                isSyncing.set(false)
                 // Notify listeners that a sync attempt finished (successfully or not)
                 try {
                     _syncCompleted.tryEmit(Unit)
@@ -225,7 +280,7 @@ object SyncManager {
 
     private fun extractOrderId(responseData: String?): Int? {
         if (responseData.isNullOrBlank()) return null
-        return Regex("\\d+").find(responseData)?.value?.toIntOrNull()
+        return responseData.replace("Pedido creado con ID: ", "").trim().toIntOrNull()
     }
 
     private fun extractLocalOrderId(rawPayload: String): Int? {

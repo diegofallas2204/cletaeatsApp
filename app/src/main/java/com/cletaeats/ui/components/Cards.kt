@@ -196,7 +196,7 @@ fun RestaurantGridItem(
 
 private fun inferSource(id: Int, cloudIds: Set<Int>): String = when {
     id in cloudIds  -> "CLOUD"
-    id in 1000..9999 -> "LOCAL"
+    id < 0           -> "LOCAL"
     else             -> "API"
 }
 

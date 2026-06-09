@@ -1,19 +1,15 @@
 package com.cletaeats.ui.tracking
 
 import org.osmdroid.config.Configuration as OSMConfiguration
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -22,8 +18,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.cletaeats.ui.theme.*
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.GeoPoint
+import org.osmdroid.util.BoundingBox
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polyline
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,6 +31,8 @@ fun OrderTrackingMapScreen(
     onOrderCancelled: () -> Unit
 ) {
     var showCancelDialog by remember { mutableStateOf(false) }
+    val routePoints = viewModel.routePoints
+    val zoomed = remember { BooleanArray(1) }
 
     Scaffold(
         topBar = {
@@ -47,14 +47,9 @@ fun OrderTrackingMapScreen(
             )
         }
     ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             val context = LocalContext.current
-            
-            // Inicializar la configuración de OSMdroid
+
             LaunchedEffect(Unit) {
                 OSMConfiguration.getInstance().userAgentValue = context.packageName
             }
@@ -64,20 +59,48 @@ fun OrderTrackingMapScreen(
                     MapView(ctx).apply {
                         setTileSource(TileSourceFactory.MAPNIK)
                         setMultiTouchControls(true)
-                        
-                        // Coordenadas fijas por ahora: Campus Benjamín Núñez (aprox)
-                        val startPoint = GeoPoint(9.9750, -84.1250)
-                        controller.setZoom(15.0)
-                        controller.setCenter(startPoint)
+                        controller.setZoom(14.0)
+                        controller.setCenter(viewModel.restaurantPoint)
                     }
                 },
                 modifier = Modifier.fillMaxSize(),
                 update = { mapView ->
                     mapView.onResume()
+                    mapView.overlays.clear()
+
+                    Marker(mapView).also { m ->
+                        m.position = viewModel.restaurantPoint
+                        m.title = viewModel.pedido.restauranteNombre ?: "Restaurante"
+                        m.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        mapView.overlays.add(m)
+                    }
+                    Marker(mapView).also { m ->
+                        m.position = viewModel.clientePoint
+                        m.title = "Tu destino"
+                        m.icon = TrackingCoordinates.createHouseIcon(mapView.context)
+                        m.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                        mapView.overlays.add(m)
+                    }
+
+                    if (routePoints.isNotEmpty()) {
+                        Polyline().also { poly ->
+                            poly.setPoints(routePoints)
+                            poly.outlinePaint.color = android.graphics.Color.parseColor("#FF6600")
+                            poly.outlinePaint.strokeWidth = 8f
+                            mapView.overlays.add(0, poly)
+                        }
+                        if (!zoomed[0]) {
+                            val bb = BoundingBox.fromGeoPoints(
+                                listOf(viewModel.restaurantPoint, viewModel.clientePoint)
+                            )
+                            mapView.post { mapView.zoomToBoundingBox(bb, false, 120) }
+                            zoomed[0] = true
+                        }
+                    }
+                    mapView.invalidate()
                 }
             )
 
-            // Details bottom card
             OrderTrackingDetailsCard(
                 restauranteNombre = viewModel.pedido.restauranteNombre ?: "Restaurante",
                 pedidoId = viewModel.pedido.id,
@@ -138,7 +161,8 @@ private fun OrderTrackingDetailsCard(
                     else -> OrangeSoft to Color.White
                 }
                 Surface(shape = RoundedCornerShape(8.dp), color = badgeColor) {
-                    Text(status.uppercase(), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = textColor)
+                    Text(status.uppercase(), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                         fontSize = 11.sp, fontWeight = FontWeight.Bold, color = textColor)
                 }
             }
 

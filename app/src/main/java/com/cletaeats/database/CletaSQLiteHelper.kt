@@ -77,9 +77,10 @@ class CletaSQLiteHelper(context: Context) :
             )
             """.trimIndent()
         )
+        // esta tabla es el núcleo del modo offline: guarda todo lo que no se pudo enviar a la API
         db.execSQL(
             """
-            CREATE TABLE $TABLE_PENDING_ACTIONS (
+            CREATE TABLE IF NOT EXISTS $TABLE_PENDING_ACTIONS (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 tipo_operacion TEXT,
                 payload TEXT,
@@ -89,6 +90,8 @@ class CletaSQLiteHelper(context: Context) :
         )
     }
 
+    // Las tablas de caché se pueden borrar y recrear porque la API las repuebla.
+    // pending_actions NO se toca: contiene acciones offline irrecuperables aún no sincronizadas.
     override fun onUpgrade(
         db: SQLiteDatabase,
         oldVersion: Int,
@@ -98,8 +101,63 @@ class CletaSQLiteHelper(context: Context) :
         db.execSQL("DROP TABLE IF EXISTS $TABLE_COMBOS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_PEDIDOS")
         db.execSQL("DROP TABLE IF EXISTS $TABLE_TARJETAS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_PENDING_ACTIONS")
-        onCreate(db)
+        // Crear pending_actions solo si no existe (preserva filas de versiones anteriores)
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_PENDING_ACTIONS (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tipo_operacion TEXT,
+                payload TEXT,
+                timestamp INTEGER
+            )
+            """.trimIndent()
+        )
+        // Recrear tablas de caché
+        db.execSQL(
+            """
+            CREATE TABLE $TABLE_RESTAURANTES (
+                id INTEGER PRIMARY KEY,
+                nombre TEXT,
+                cedula_juridica TEXT,
+                direccion TEXT,
+                tipo_comida TEXT
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE $TABLE_COMBOS (
+                id INTEGER PRIMARY KEY,
+                restauranteId INTEGER,
+                numeroCombo INTEGER,
+                nombre TEXT,
+                precio REAL
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE $TABLE_PEDIDOS (
+                id INTEGER PRIMARY KEY,
+                restauranteNombre TEXT,
+                total REAL,
+                estado TEXT,
+                fechaPedido TEXT,
+                notas TEXT
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE $TABLE_TARJETAS (
+                id INTEGER PRIMARY KEY,
+                clienteId INTEGER,
+                numeroTarjeta TEXT,
+                fechaVencimiento TEXT,
+                cvv TEXT
+            )
+            """.trimIndent()
+        )
     }
 
     fun guardarAccionPendiente(tipo: String, payload: String) {
@@ -139,6 +197,19 @@ class CletaSQLiteHelper(context: Context) :
         val db = writableDatabase
         db.delete(TABLE_PENDING_ACTIONS, "id = ?", arrayOf(id.toString()))
         android.util.Log.d("CletaEats", "Acción pendiente eliminada con id: $id")
+    }
+
+    // Elimina UPDATE_ORDER_STATUS pendientes asociados a un orderId — usado cuando ASSIGN_ORDER
+    // falla por conflicto y el UPDATE_ORDER_STATUS dependiente quedaría huérfano en la cola.
+    fun eliminarUpdateStatusPendiente(orderId: Int) {
+        val db = writableDatabase
+        val deleted = db.delete(
+            TABLE_PENDING_ACTIONS,
+            "tipo_operacion = ? AND (payload LIKE ? OR payload LIKE ?)",
+            arrayOf("UPDATE_ORDER_STATUS", "%\"orderId\":$orderId%", "%\"orderId\": $orderId%")
+        )
+        if (deleted > 0)
+            android.util.Log.d("CletaEats", "UPDATE_ORDER_STATUS huérfano eliminado para pedido $orderId")
     }
 
 
@@ -253,13 +324,12 @@ class CletaSQLiteHelper(context: Context) :
     }
 
     fun reemplazarPedidoId(oldId: Int, newId: Int) {
-        val pedidosActuales = obtenerPedidos()
-        val actualizados = pedidosActuales.map { pedido ->
-            if (pedido.id == oldId) pedido.copy(id = newId) else pedido
-        }
-        guardarPedidos(actualizados)
+        val db = writableDatabase
+        val values = ContentValues().apply { put("id", newId) }
+        db.update(TABLE_PEDIDOS, values, "id = ?", arrayOf(oldId.toString()))
     }
 
+    // cuando el backend confirma el pedido y asigna su ID real, hay que actualizarlo en todas las acciones pendientes que usaban el ID local temporal
     fun remapOrderIdInPendingActions(oldId: Int, newId: Int) {
         val acciones = obtenerAccionesPendientes()
         acciones.forEach { accion ->
@@ -317,7 +387,7 @@ class CletaSQLiteHelper(context: Context) :
                     put("clienteId", tarjeta.clienteId ?: 0)
                     put("numeroTarjeta", tarjeta.numeroTarjeta)
                     put("fechaVencimiento", tarjeta.fechaVencimiento)
-                    put("cvv", tarjeta.cvv)
+                    put("cvv", "") // CVV nunca se persiste; solo existe en memoria durante la transacción
                 }
                 db.insert(TABLE_TARJETAS, null, values)
             }

@@ -6,7 +6,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 import okhttp3.ResponseBody
 
-private const val BASE_URL = "https://cletaeatsbe-production.up.railway.app/"
+private const val BASE_URL = "https://cletaeats-backend.onrender.com/"
 
 interface CletaApiService {
     @POST("api/usuarios/login")
@@ -92,6 +92,7 @@ interface CletaApiService {
     ): ResponseBody
 }
 
+// este objeto quedó de una versión anterior — el código activo usa CletaApiClient, pero SyncManager todavía lo referencia
 object CletaApi {
     private val retrofit = Retrofit.Builder()
         .addConverterFactory(GsonConverterFactory.create())

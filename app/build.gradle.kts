@@ -16,7 +16,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "API_BASE_URL", "\"https://cletaeatsbe-production.up.railway.app/\"")
+        buildConfigField("String", "API_BASE_URL", "\"https://cletaeats-backend.onrender.com/\"")
     }
 
     compileOptions {
@@ -79,6 +79,9 @@ dependencies {
 
     // WorkManager (sync en background)
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+    // Biometric authentication
+    implementation("androidx.biometric:biometric:1.1.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("androidx.test:core:1.6.1")

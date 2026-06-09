@@ -6,6 +6,12 @@ import java.net.UnknownHostException
 
 object SyncErrorUtils {
 
+    fun isUnauthorized(e: Exception): Boolean =
+        e is HttpException && e.code() == 401
+
+    fun isConflict(e: Exception): Boolean =
+        e is HttpException && e.code() == 409
+
     fun isTransientFailure(e: Exception): Boolean {
         if (e is UnknownHostException) return true
         if (e is IOException) {
