@@ -20,7 +20,7 @@ class CletaSQLiteHelper(context: Context) :
         context,
         "cletaeats.db",
         null,
-        5
+        6
     ) {
 
     companion object {
@@ -72,8 +72,7 @@ class CletaSQLiteHelper(context: Context) :
                 id INTEGER PRIMARY KEY,
                 clienteId INTEGER,
                 numeroTarjeta TEXT,
-                fechaVencimiento TEXT,
-                cvv TEXT
+                fechaVencimiento TEXT
             )
             """.trimIndent()
         )
@@ -153,8 +152,7 @@ class CletaSQLiteHelper(context: Context) :
                 id INTEGER PRIMARY KEY,
                 clienteId INTEGER,
                 numeroTarjeta TEXT,
-                fechaVencimiento TEXT,
-                cvv TEXT
+                fechaVencimiento TEXT
             )
             """.trimIndent()
         )
@@ -197,6 +195,22 @@ class CletaSQLiteHelper(context: Context) :
         val db = writableDatabase
         db.delete(TABLE_PENDING_ACTIONS, "id = ?", arrayOf(id.toString()))
         android.util.Log.d("CletaEats", "Acción pendiente eliminada con id: $id")
+    }
+
+    /**
+     * Elimina todas las acciones pendientes cuyo tipo esté en [tipos].
+     * Se llama al cerrar sesión para limpiar acciones de repartidor que no aplican al nuevo usuario.
+     */
+    fun eliminarAccionesDeTipo(vararg tipos: String) {
+        if (tipos.isEmpty()) return
+        val db = writableDatabase
+        val placeholders = tipos.joinToString(",") { "?" }
+        val deleted = db.delete(
+            TABLE_PENDING_ACTIONS,
+            "tipo_operacion IN ($placeholders)",
+            tipos.map { it }.toTypedArray()
+        )
+        android.util.Log.d("CletaEats", "Acciones pendientes eliminadas por tipo ${tipos.toList()}: $deleted filas")
     }
 
     // Elimina UPDATE_ORDER_STATUS pendientes asociados a un orderId — usado cuando ASSIGN_ORDER
@@ -387,7 +401,6 @@ class CletaSQLiteHelper(context: Context) :
                     put("clienteId", tarjeta.clienteId ?: 0)
                     put("numeroTarjeta", tarjeta.numeroTarjeta)
                     put("fechaVencimiento", tarjeta.fechaVencimiento)
-                    put("cvv", "") // CVV nunca se persiste; solo existe en memoria durante la transacción
                 }
                 db.insert(TABLE_TARJETAS, null, values)
             }
@@ -413,7 +426,7 @@ class CletaSQLiteHelper(context: Context) :
                         clienteId = clientId,
                         numeroTarjeta = cursor.getString(2),
                         fechaVencimiento = cursor.getString(3),
-                        cvv = cursor.getString(4)
+                        cvv = ""
                     )
                 )
             }

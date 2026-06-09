@@ -2,6 +2,8 @@ package com.cletaeats.network
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Base64
+import org.json.JSONObject
 
 /**
  * Gestiona la sesión del usuario de forma persistente usando SharedPreferences.
@@ -55,7 +57,18 @@ object SessionManager {
 
     // ── Estado ─────────────────────────────────────────────────────────────
     val isLoggedIn: Boolean
-        get() = token != null
+        get() = token?.let { !isTokenExpired(it) } ?: false
+
+    private fun isTokenExpired(jwt: String): Boolean {
+        return try {
+            val payload = jwt.split(".").getOrNull(1) ?: return true
+            val decoded = Base64.decode(payload, Base64.URL_SAFE or Base64.NO_PADDING)
+            val exp = JSONObject(String(decoded)).getLong("exp")
+            System.currentTimeMillis() / 1000 >= exp
+        } catch (e: Exception) {
+            true // si no se puede leer el token, tratarlo como expirado
+        }
+    }
 
     // ── Operaciones ────────────────────────────────────────────────────────
 

@@ -123,6 +123,11 @@ object TokenManager {
         set(value) { SessionManager.rol = value }
 
     fun logout() {
+        // Limpiar acciones de repartidor antes de borrar la sesión para que
+        // el próximo usuario (cliente) no arrastre UPDATE_ORDER_STATUS / ASSIGN_ORDER obsoletos.
+        try {
+            com.cletaeats.database.SyncManager.limpiarAccionesRepartidor()
+        } catch (_: Exception) {}
         SessionManager.clearSession()
     }
 }

@@ -82,6 +82,10 @@ class MainActivity : FragmentActivity() {
                                     currentScreen = "login"
                                     sessionWarning = "Tu cuenta ha sido deshabilitada. Contacta al administrador."
                                 }
+                                is SessionEvent.ProfileNotFound -> {
+                                    currentScreen = "login"
+                                    sessionWarning = "No se encontró tu perfil de repartidor. Contacta al administrador."
+                                }
                             }
                         }
                     }

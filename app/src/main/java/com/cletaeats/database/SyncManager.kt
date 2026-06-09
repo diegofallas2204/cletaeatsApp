@@ -60,6 +60,16 @@ object SyncManager {
         Log.d(TAG, "SyncManager: modo de datos cambiado a ${if (enabled) "API" else "LOCAL"}")
     }
 
+    /**
+     * Elimina de la cola SQLite todas las acciones exclusivas de repartidor.
+     * Llamar al hacer logout para que un usuario cliente que inicie sesión
+     * no arrastre acciones obsoletas de una sesión de repartidor anterior.
+     */
+    fun limpiarAccionesRepartidor() {
+        sqliteHelper.eliminarAccionesDeTipo("UPDATE_ORDER_STATUS", "ASSIGN_ORDER")
+        Log.d(TAG, "SyncManager: Acciones de repartidor limpiadas al cerrar sesión.")
+    }
+
     fun guardarAccionPendiente(tipo: String, payload: String) {
         sqliteHelper.guardarAccionPendiente(tipo, payload)
     }

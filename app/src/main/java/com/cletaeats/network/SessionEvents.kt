@@ -6,6 +6,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 sealed class SessionEvent {
     /** El servidor rechazó la sesión porque el admin deshabilitó la cuenta. */
     object AccountDisabled : SessionEvent()
+
+    /** El usuario autenticado no tiene perfil de repartidor en la BD. */
+    object ProfileNotFound : SessionEvent()
 }
 
 /**

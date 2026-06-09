@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import com.cletaeats.network.*
+import retrofit2.HttpException
 import com.cletaeats.ui.components.ConnectionStatusBanner
 import com.cletaeats.ui.components.RepartidorActiveTab
 import com.cletaeats.ui.components.RepartidorBottomBar
@@ -35,6 +36,7 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
     var isLoading by remember { mutableStateOf(true) }
     var isSubmittingStatus by remember { mutableStateOf(false) }
     var isOnline by remember { mutableStateOf(true) }
+    var profileError by remember { mutableStateOf(false) }
     val connectionState by connectivityState()
     val networkOnline = connectionState is ConnectionState.Available
 
@@ -52,6 +54,16 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                 val responseMios = CletaApi.retrofitService.getRepartidorPedidos("Bearer $t")
                 if (responseMios.success) mios = responseMios.data ?: emptyList()
                 Log.d("CletaEats", "refreshData: pedidos asignados=${mios.size}")
+            } catch (e: HttpException) {
+                Log.e("CletaEats", "Error cargando pedidos asignados: HTTP ${e.code()}")
+                if (e.code() == 400) {
+                    // El usuario no tiene perfil de repartidor — forzar logout
+                    Log.w("CletaEats", "Perfil de repartidor no encontrado, cerrando sesión.")
+                    profileError = true
+                    TokenManager.logout()
+                    SessionEvents.emit(SessionEvent.ProfileNotFound)
+                    return
+                }
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error cargando pedidos asignados: ${e.message}")
             }
@@ -61,6 +73,8 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                 val responseDisp = CletaApi.retrofitService.getPedidosDisponibles("Bearer $t")
                 if (responseDisp.success) disp = responseDisp.data ?: emptyList()
                 Log.d("CletaEats", "refreshData: pedidos disponibles=${disp.size}")
+            } catch (e: HttpException) {
+                Log.e("CletaEats", "Error cargando pedidos disponibles: HTTP ${e.code()}")
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error cargando pedidos disponibles: ${e.message}")
             }
@@ -111,10 +125,12 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
     }
 
     // Polling automático: espera a que refreshData termine antes del siguiente ciclo
+    // Se detiene si se detecta un error de perfil (profileError = true)
     LaunchedEffect(Unit) {
         isLoading = true
-        while (true) {
+        while (!profileError) {
             refreshData()
+            if (profileError) break
             delay(5000)
         }
     }
