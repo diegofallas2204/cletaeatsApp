@@ -2,8 +2,7 @@ package com.cletaeats.ui.components
 
 import android.util.Log
 import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
-import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -38,7 +37,8 @@ fun PaymentDialog(
     tarjetas: List<MetodoPago>,
     onDismiss: () -> Unit,
     onSaveCard: (MetodoPago) -> Unit,
-    onConfirm: (String) -> Unit
+    onConfirm: (String) -> Unit,
+    onCancelOrder: () -> Unit = {}
 ) {
     var selectedValue by remember(tarjetas) {
         mutableStateOf(tarjetas.firstOrNull()?.numeroTarjeta ?: "")
@@ -48,6 +48,7 @@ fun PaymentDialog(
     var exp by remember { mutableStateOf("") }
     var cvv by remember { mutableStateOf("") }
     var biometricError by remember { mutableStateOf(false) }
+    var biometricAttempts by remember { mutableStateOf(0) }
 
     val context = LocalContext.current
     val activity = context as? FragmentActivity
@@ -56,8 +57,9 @@ fun PaymentDialog(
 
     val canBiometric = remember(activity) {
         activity?.let {
-            BiometricManager.from(it).canAuthenticate(BIOMETRIC_STRONG or DEVICE_CREDENTIAL) ==
-                BiometricManager.BIOMETRIC_SUCCESS
+            val result = BiometricManager.from(it).canAuthenticate(BIOMETRIC_WEAK)
+            android.util.Log.d("CletaEats", "canAuthenticate(BIOMETRIC_WEAK) = $result")
+            result == BiometricManager.BIOMETRIC_SUCCESS
         } ?: false
     }
 
@@ -171,9 +173,23 @@ fun PaymentDialog(
                         Icon(Icons.Default.Save, contentDescription = "Guardar y Seleccionar", modifier = Modifier.size(24.dp))
                     }
                 }
-                if (biometricError) {
+                if (biometricAttempts in 1..2) {
                     Text(
-                        "Autenticación cancelada",
+                        "Huella no reconocida. Intento $biometricAttempts/3.",
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                } else if (biometricAttempts >= 3) {
+                    Text(
+                        "3 intentos fallidos. El pedido será cancelado.",
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                } else if (biometricError) {
+                    Text(
+                        "Autenticación cancelada.",
                         color = MaterialTheme.colorScheme.error,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(top = 8.dp)
@@ -182,7 +198,7 @@ fun PaymentDialog(
             }
         },
         confirmButton = {
-            val isConfirmEnabled = selectedValue.isNotEmpty() && !isSubmitting
+            val isConfirmEnabled = selectedValue.isNotEmpty() && !isSubmitting && biometricAttempts < 3
             Button(
                 onClick = {
                     Log.d("CletaEats", "Intentando confirmar pago con tarjeta ${selectedValue.takeLast(4)}")
@@ -192,7 +208,15 @@ fun PaymentDialog(
                             launchBiometric(
                                 activity = activity,
                                 lastFour = selectedValue.takeLast(4),
-                                onSuccess = { onConfirm(selectedValue) },
+                                onSuccess = {
+                                    biometricAttempts = 0
+                                    onConfirm(selectedValue)
+                                },
+                                onFailed = {
+                                    biometricAttempts++
+                                    Log.w("CletaEats", "Biométrico fallido: intento $biometricAttempts/3")
+                                    if (biometricAttempts >= 3) onCancelOrder()
+                                },
                                 onError = { biometricError = true }
                             )
                         } else {
@@ -244,20 +268,21 @@ private fun launchBiometric(
     activity: FragmentActivity,
     lastFour: String,
     onSuccess: () -> Unit,
+    onFailed: () -> Unit,
     onError: () -> Unit
 ) {
     val executor = ContextCompat.getMainExecutor(activity)
     val prompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = onSuccess()
         override fun onAuthenticationError(errorCode: Int, errString: CharSequence) = onError()
-        override fun onAuthenticationFailed() = Unit
+        override fun onAuthenticationFailed() = onFailed()
     })
     prompt.authenticate(
         BiometricPrompt.PromptInfo.Builder()
             .setTitle("Confirmar pago")
             .setSubtitle("**** $lastFour")
-            .setDescription("Autoriza el pago con tu huella o Face ID")
-            .setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
+            .setDescription("Autoriza el pago con tu huella")
+            .setNegativeButtonText("Cancelar")
             .build()
     )
 }

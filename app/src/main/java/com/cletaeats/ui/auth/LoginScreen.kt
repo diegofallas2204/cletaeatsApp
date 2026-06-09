@@ -29,10 +29,14 @@ import com.cletaeats.network.SessionManager
 import kotlinx.coroutines.launch
 
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {}) {
+fun LoginScreen(
+    onLoginSuccess: () -> Unit,
+    onNavigateToRegister: () -> Unit = {},
+    warningMessage: String? = null
+) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var rol by remember { mutableStateOf("cliente") } // Nuevo selector de roles
+    var rol by remember { mutableStateOf("cliente") }
     var showError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("Credenciales inválidas. Inténtalo de nuevo.") }
     var isLoading by remember { mutableStateOf(false) }
@@ -47,6 +51,25 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit = {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        // Banner de cuenta deshabilitada (viene del admin)
+        if (warningMessage != null) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    text = warningMessage,
+                    modifier = Modifier.padding(12.dp),
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
         Image(
             painter = painterResource(id = R.drawable.cletaeats_logo),
             contentDescription = "CletaEats Logo",

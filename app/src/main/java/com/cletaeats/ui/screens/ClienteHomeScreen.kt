@@ -489,6 +489,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
         PaymentDialog(
             isSubmitting = isSubmittingOrder, tarjetas = tarjetasGuardadas,
             onDismiss = { showPaymentDialog = false },
+            onCancelOrder = { showPaymentDialog = false },
             onSaveCard = { nuevaTarjeta ->
                 coroutineScope.launch {
                     try {

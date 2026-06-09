@@ -21,6 +21,18 @@ object CletaApiClient {
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
 
+        // Interceptor global: si el servidor devuelve 403, la cuenta fue deshabilitada.
+        // Limpiamos la sesión local y notificamos a la UI para forzar logout.
+        builder.addInterceptor { chain ->
+            val response = chain.proceed(chain.request())
+            if (response.code == 403) {
+                Log.w(TAG, "403 recibido — cuenta deshabilitada. Forzando logout.")
+                TokenManager.logout()
+                SessionEvents.emit(SessionEvent.AccountDisabled)
+            }
+            response
+        }
+
         if (BuildConfig.DEBUG) {
             val logging = HttpLoggingInterceptor { message ->
                 Log.d(TAG, "HTTP: $message")

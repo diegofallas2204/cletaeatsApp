@@ -1,8 +1,8 @@
 package com.cletaeats
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.work.*
 import com.cletaeats.database.SyncWorker
 import com.cletaeats.network.SessionManager
+import com.cletaeats.network.SessionEvent
+import com.cletaeats.network.SessionEvents
 import com.cletaeats.network.TokenManager
 import com.cletaeats.ui.auth.LoginScreen
 import com.cletaeats.ui.auth.RegisterScreen
@@ -29,7 +31,7 @@ import com.cletaeats.utils.ConnectionState
 import com.cletaeats.ui.components.NoInternetScreen
 import java.util.concurrent.TimeUnit
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,6 +72,19 @@ class MainActivity : ComponentActivity() {
                     var currentScreen by remember {
                         mutableStateOf(if (SessionManager.isLoggedIn) "home" else "login")
                     }
+                    var sessionWarning by remember { mutableStateOf<String?>(null) }
+
+                    // Escuchar eventos globales de sesión (ej: cuenta deshabilitada por el admin)
+                    LaunchedEffect(Unit) {
+                        SessionEvents.events.collect { event ->
+                            when (event) {
+                                is SessionEvent.AccountDisabled -> {
+                                    currentScreen = "login"
+                                    sessionWarning = "Tu cuenta ha sido deshabilitada. Contacta al administrador."
+                                }
+                            }
+                        }
+                    }
 
                     if (connectionState is ConnectionState.Unavailable && !SessionManager.isLoggedIn) {
                         NoInternetScreen()
@@ -80,8 +95,12 @@ class MainActivity : ComponentActivity() {
                         when (currentScreen) {
                             "login" -> {
                                 LoginScreen(
-                                    onLoginSuccess = { currentScreen = "home" },
-                                    onNavigateToRegister = { currentScreen = "register" }
+                                    onLoginSuccess = {
+                                        sessionWarning = null
+                                        currentScreen = "home"
+                                    },
+                                    onNavigateToRegister = { currentScreen = "register" },
+                                    warningMessage = sessionWarning
                                 )
                             }
                             "register" -> {

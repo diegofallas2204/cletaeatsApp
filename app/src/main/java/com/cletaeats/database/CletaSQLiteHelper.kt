@@ -20,7 +20,7 @@ class CletaSQLiteHelper(context: Context) :
         context,
         "cletaeats.db",
         null,
-        4
+        5
     ) {
 
     companion object {
