@@ -196,7 +196,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                     // Duplicar todos los combos localmente
                     nuevos.forEach { rest ->
                         try {
-                            val comboResp = CletaApi.retrofitService.getCombosByRestaurant(authHeader, rest.id)
+                            val comboResp = CletaApi.retrofitService.getCombosByRestaurant(rest.id)
                             if (comboResp.success) {
                                 val combos = comboResp.data ?: emptyList()
                                 sqliteHelper.guardarCombos(rest.id, combos)
@@ -278,7 +278,7 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
                     val token = TokenManager.token
                     if (token != null) {
                         val response = CletaApi.retrofitService
-                            .getCombosByRestaurant("Bearer $token", restauranteId)
+                            .getCombosByRestaurant(restauranteId)
                         if (response.success) {
                             val nuevosCombos = response.data ?: emptyList()
                             menuCombos = nuevosCombos

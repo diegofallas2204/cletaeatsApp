@@ -19,12 +19,11 @@ interface CletaApiService {
     @GET("api/restaurantes")
     suspend fun getRestaurantes(): CletaResponse<List<RestauranteItem>>
 
-    @GET("api/admin/combos")
-    suspend fun getCombos(@Header("Authorization") token: String): CletaResponse<List<ComboItem>>
+    @GET("api/combos")
+    suspend fun getCombos(): CletaResponse<List<ComboItem>>
 
-    @GET("api/admin/combos/{restauranteId}")
+    @GET("api/combos/{restauranteId}")
     suspend fun getCombosByRestaurant(
-        @Header("Authorization") token: String,
         @Path("restauranteId") restauranteId: Int
     ): CletaResponse<List<ComboItem>>
 
