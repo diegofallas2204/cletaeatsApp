@@ -80,6 +80,28 @@ object SyncManager {
         sincronizar()
     }
 
+    /**
+     * IDs de pedidos que tienen una acción offline encolada y aún sin sincronizar.
+     * El merge de caché debe dar prioridad al estado local SOLO para estos pedidos; para el
+     * resto, el servidor es la fuente de verdad (evita que un estado viejo en caché —ej:
+     * "pendiente"— pise un estado más nuevo del servidor —ej: "entregado" por el repartidor—).
+     */
+    fun pendingOrderIds(): Set<Int> {
+        val ids = mutableSetOf<Int>()
+        for (accion in sqliteHelper.obtenerAccionesPendientes()) {
+            when (accion.tipo) {
+                "CANCEL_ORDER", "ASSIGN_ORDER" -> accion.payload.toIntOrNull()?.let { ids.add(it) }
+                "UPDATE_ORDER_STATUS" -> try {
+                    gson.fromJson(accion.payload, UpdateStatusPayload::class.java)?.orderId?.let { ids.add(it) }
+                } catch (e: Exception) {
+                    Log.w(TAG, "SyncManager: payload UPDATE_ORDER_STATUS inválido: ${e.message}")
+                }
+                "CREATE_ORDER" -> extractLocalOrderId(accion.payload)?.let { ids.add(it) }
+            }
+        }
+        return ids
+    }
+
     fun handleOfflineCancel(orderId: Int) {
         val pendientes = sqliteHelper.obtenerAccionesPendientes()
         val pendingCreate = pendientes.find { accion ->

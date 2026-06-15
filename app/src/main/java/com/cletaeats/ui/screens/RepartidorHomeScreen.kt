@@ -105,7 +105,8 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
             val merged = PedidoMergeUtils.mergeWithLocalCache(
                 serverPedidos = combined,
                 localPedidos = localActualizadosSuspendidos,
-                restaurantes = restaurantes
+                restaurantes = restaurantes,
+                pendingActionOrderIds = com.cletaeats.database.SyncManager.pendingOrderIds()
             )
 
             try {

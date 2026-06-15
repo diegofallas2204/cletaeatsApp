@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -135,13 +136,17 @@ private fun RepartidorTrackingDetailsCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(activo.restauranteNombre ?: "Restaurante", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = BrownDark)
-                    Text("Pedido #${activo.id}", color = TextMid, fontSize = 14.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        activo.restauranteNombre ?: "Restaurante", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = BrownDark,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    Text("Pedido #${activo.id}", color = TextMid, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                Spacer(modifier = Modifier.width(12.dp))
                 Surface(shape = RoundedCornerShape(8.dp), color = if (esEnCamino) GreenAccent else OrangeSoft) {
                     Text(estado.uppercase(), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                         fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                         fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                 }
             }
 
@@ -162,13 +167,17 @@ private fun RepartidorTrackingDetailsCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text("Destino:", fontWeight = FontWeight.Bold, color = BrownMid, fontSize = 12.sp)
-                    Text("UNA Campus Benjamín Núñez", fontWeight = FontWeight.Bold, color = TextDark, fontSize = 14.sp)
+                    Text(
+                        "UNA Campus Benjamín Núñez", fontWeight = FontWeight.Bold, color = TextDark, fontSize = 14.sp,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis
+                    )
                 }
+                Spacer(modifier = Modifier.width(12.dp))
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Total Ganancia:", color = TextMid, fontSize = 12.sp)
-                    Text("CRC ${activo.total ?: 0.0}", fontWeight = FontWeight.ExtraBold, color = GreenAccent, fontSize = 16.sp)
+                    Text("Total Ganancia:", color = TextMid, fontSize = 12.sp, maxLines = 1)
+                    Text("CRC ${activo.total ?: 0.0}", fontWeight = FontWeight.ExtraBold, color = GreenAccent, fontSize = 16.sp, maxLines = 1)
                 }
             }
 
@@ -209,10 +218,14 @@ private fun RepartidorPedidoCanceladoCard(activo: PedidoItem, onBack: (() -> Uni
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(activo.restauranteNombre ?: "Restaurante", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = BrownDark)
-                    Text("Pedido #${activo.id}", color = TextMid, fontSize = 14.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        activo.restauranteNombre ?: "Restaurante", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = BrownDark,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    Text("Pedido #${activo.id}", color = TextMid, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                Spacer(modifier = Modifier.width(12.dp))
                 Surface(shape = RoundedCornerShape(8.dp), color = Color.Red.copy(alpha = 0.15f)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

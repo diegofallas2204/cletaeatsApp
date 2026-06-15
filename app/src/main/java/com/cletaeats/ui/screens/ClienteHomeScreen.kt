@@ -115,8 +115,10 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
 
                 val merged = if (serverPedidos.isNotEmpty()) {
                     val restaurantesLocales = sqliteHelper.obtenerRestaurantes()
-                    PedidoMergeUtils.mergeWithLocalCache(serverPedidos, localPedidos, restaurantesLocales)
-                        .also { sqliteHelper.guardarPedidos(it) }
+                    PedidoMergeUtils.mergeWithLocalCache(
+                        serverPedidos, localPedidos, restaurantesLocales,
+                        com.cletaeats.database.SyncManager.pendingOrderIds()
+                    ).also { sqliteHelper.guardarPedidos(it) }
                 } else {
                     localPedidos
                 }

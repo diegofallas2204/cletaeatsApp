@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -164,10 +165,14 @@ private fun OrderTrackingDetailsCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(restauranteNombre, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = BrownDark)
-                    Text("Pedido #${pedidoId}", color = TextMid, fontSize = 14.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        restauranteNombre, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = BrownDark,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    Text("Pedido #${pedidoId}", color = TextMid, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                Spacer(modifier = Modifier.width(12.dp))
                 val (badgeColor, textColor) = when (status) {
                     "entregado" -> GreenAccent to Color.White
                     "cancelado" -> Color.Red to Color.White
@@ -175,7 +180,7 @@ private fun OrderTrackingDetailsCard(
                 }
                 Surface(shape = RoundedCornerShape(8.dp), color = badgeColor) {
                     Text(status.uppercase(), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                         fontSize = 11.sp, fontWeight = FontWeight.Bold, color = textColor)
+                         fontSize = 11.sp, fontWeight = FontWeight.Bold, color = textColor, maxLines = 1)
                 }
             }
 
@@ -188,10 +193,14 @@ private fun OrderTrackingDetailsCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text("Destino:", fontWeight = FontWeight.Bold, color = BrownMid, fontSize = 12.sp)
-                    Text("UNA Campus Benjamín Núñez", fontWeight = FontWeight.Bold, color = TextDark, fontSize = 14.sp)
+                    Text(
+                        "UNA Campus Benjamín Núñez", fontWeight = FontWeight.Bold, color = TextDark, fontSize = 14.sp,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis
+                    )
                 }
+                Spacer(modifier = Modifier.width(12.dp))
                 val etaText = when (status) {
                     "entregado" -> "Entregado"
                     "cancelado" -> "Cancelado"

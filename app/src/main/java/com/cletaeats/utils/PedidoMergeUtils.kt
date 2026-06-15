@@ -13,7 +13,12 @@ object PedidoMergeUtils {
     fun mergeWithLocalCache(
         serverPedidos: List<PedidoItem>,
         localPedidos: List<PedidoItem>,
-        restaurantes: List<RestauranteItem>
+        restaurantes: List<RestauranteItem>,
+        // IDs de pedidos con una acción offline aún sin sincronizar. SOLO para estos
+        // el estado local prevalece sobre el del servidor; para el resto, el estado local
+        // es caché obsoleta y el servidor manda (ej: el repartidor entregó mientras el cliente
+        // estaba sin conexión). Vacío por defecto = comportamiento conservador (servidor manda).
+        pendingActionOrderIds: Set<Int> = emptySet()
     ): List<PedidoItem> {
         val localById = localPedidos.associateBy { it.id }
         val serverIds = serverPedidos.map { it.id }.toSet()
@@ -25,8 +30,10 @@ object PedidoMergeUtils {
                 val mergedStatus = when {
                     // Cancelación del cliente siempre gana: sobreescribe cualquier estado local
                     serverEstado == "suspendido" -> pedido.estado
-                    // Estado que el repartidor/cliente modificó offline tiene prioridad
-                    local.estado?.lowercase() in LOCAL_PRIORITY_STATUSES -> local.estado
+                    // El estado local solo prevalece si hay un cambio offline sin sincronizar
+                    // para este pedido; de lo contrario el servidor es la fuente de verdad.
+                    pedido.id in pendingActionOrderIds &&
+                        local.estado?.lowercase() in LOCAL_PRIORITY_STATUSES -> local.estado
                     else -> pedido.estado ?: local.estado
                 }
                 pedido.copy(
