@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,6 +34,18 @@ fun OrderTrackingMapScreen(
     var showCancelDialog by remember { mutableStateOf(false) }
     val routePoints = viewModel.routePoints
     val zoomed = remember { BooleanArray(1) }
+    val appContext = LocalContext.current.applicationContext
+
+    // Feedback de la cancelación: éxito o error del servidor (antes el estado se ignoraba).
+    LaunchedEffect(viewModel.cancellationState) {
+        when (val state = viewModel.cancellationState) {
+            is CancellationState.Success ->
+                Toast.makeText(appContext, state.message, Toast.LENGTH_SHORT).show()
+            is CancellationState.Error ->
+                Toast.makeText(appContext, state.error, Toast.LENGTH_LONG).show()
+            else -> Unit
+        }
+    }
 
     Scaffold(
         topBar = {

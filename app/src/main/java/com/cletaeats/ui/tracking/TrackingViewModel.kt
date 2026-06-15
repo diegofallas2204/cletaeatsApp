@@ -57,9 +57,12 @@ class TrackingViewModel(
                     cancellationState = CancellationState.Success(response.data ?: "Pedido cancelado")
                     onDone()
                 } else {
-                    com.cletaeats.database.SyncManager.handleOfflineCancel(pedido.id)
-                    cancellationState = CancellationState.Success("Cancelación guardada, se enviará al servidor pronto")
-                    onDone()
+                    // El servidor respondió pero rechazó la cancelación (p. ej. el pedido ya
+                    // va en camino o fue entregado). NO es un caso offline: surfacear el error
+                    // en vez de marcarlo como cancelado localmente y crear divergencia de estado.
+                    cancellationState = CancellationState.Error(
+                        response.error ?: "No se pudo cancelar el pedido en su estado actual"
+                    )
                 }
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error cancelando pedido: ${e.message}")
