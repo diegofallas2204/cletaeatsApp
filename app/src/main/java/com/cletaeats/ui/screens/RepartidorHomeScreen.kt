@@ -27,6 +27,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import com.cletaeats.utils.PedidoMergeUtils
 
+/**
+ * Estados en los que un pedido es ACTIVO para el repartidor, es decir, ya lo
+ * aceptó y es suyo. Deliberadamente NO incluye 'preparacion': ese es el estado
+ * de un pedido DISPONIBLE (sin asignar) que cualquier repartidor puede aceptar.
+ * Mezclarlos hacía que un pedido recién creado por el cliente apareciera como
+ * "activo" del repartidor sin que él lo aceptara.
+ */
+private val ESTADOS_PEDIDO_ACTIVO_REPARTIDOR =
+    setOf("aceptado", "camino", "en_camino", "en camino")
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RepartidorHomeScreen(onLogout: () -> Unit) {
@@ -97,7 +107,7 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
             // Pedidos que el repartidor tenía activos pero el servidor dejó de devolver
             // → el cliente los canceló. Los marcamos "suspendido" para que aparezcan en Cancelados.
             // Excepción: si hay un ASSIGN_ORDER pendiente, la asignación aún no sincronizó — no marcar suspendido.
-            val estadosActivosRepartidor = setOf("aceptado", "camino", "en_camino", "en camino", "preparando")
+            val estadosActivosRepartidor = ESTADOS_PEDIDO_ACTIVO_REPARTIDOR
             val pendingAssignIds = sqliteHelper.obtenerAccionesPendientes()
                 .filter { it.tipo == "ASSIGN_ORDER" }
                 .mapNotNull { it.payload.toIntOrNull() }
@@ -319,8 +329,7 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
 
     fun acceptOrder(pedido: PedidoItem) {
         coroutineScope.launch {
-            val estadosActivos = setOf("aceptado", "camino", "en_camino", "en camino", "preparando", "preparacion")
-            val tieneAsignado = pedidos.any { (it.estado?.lowercase() ?: "") in estadosActivos }
+            val tieneAsignado = pedidos.any { (it.estado?.lowercase() ?: "") in ESTADOS_PEDIDO_ACTIVO_REPARTIDOR }
             if (tieneAsignado) {
                 Log.e("CletaEats", "El repartidor ya tiene un pedido activo.")
                 return@launch
@@ -409,8 +418,7 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                             CircularProgressIndicator(color = BrownDark)
                         }
                     } else {
-                        val estadosActivos = setOf("aceptado", "camino", "en_camino", "en camino", "preparando", "preparacion")
-                        val pedidoActivo = pedidos.firstOrNull { (it.estado?.lowercase() ?: "") in estadosActivos }
+                        val pedidoActivo = pedidos.firstOrNull { (it.estado?.lowercase() ?: "") in ESTADOS_PEDIDO_ACTIVO_REPARTIDOR }
                         val tieneActivo = pedidoActivo != null
 
                         when (activeTab) {

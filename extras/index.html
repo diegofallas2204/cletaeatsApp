@@ -723,7 +723,39 @@ async function deleteRecord(plural, id) {
 
 function v(id) { return document.getElementById(id).value; }
 
+// ════════════════════════════════
+//  AUTO-REFRESH (polling tipo "sockets")
+// ════════════════════════════════
+const REFRESH_MS = 5000;
+let refreshTimer = null;
+
+// No refrescar mientras se edita en un modal ni con la pestaña oculta,
+// para no pisar el formulario abierto ni gastar peticiones de fondo.
+function isBusy() {
+  return document.getElementById('modalOverlay').classList.contains('open') || document.hidden;
+}
+
+async function autoRefresh() {
+  if (isBusy()) return;
+  const filter = document.getElementById('globalSearch').value || '';
+  try {
+    await renderAll(filter);
+  } catch (e) {
+    // Un fallo de red puntual no debe detener el ciclo de refresco.
+    console.warn('Auto-refresh falló, se reintenta en el próximo ciclo:', e);
+  }
+}
+
+function startAutoRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(autoRefresh, REFRESH_MS);
+}
+
+// Al volver a la pestaña, refrescar de inmediato sin esperar el intervalo.
+document.addEventListener('visibilitychange', () => { if (!document.hidden) autoRefresh(); });
+
 renderAll();
+startAutoRefresh();
 </script>
 </body>
 </html>
