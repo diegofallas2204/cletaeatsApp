@@ -52,12 +52,17 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
             val t = TokenManager.token ?: return
 
             var mios: List<PedidoItem> = emptyList()
+            // Solo inferimos cancelaciones (el servidor dejó de devolver un pedido) si las
+            // llamadas tuvieron éxito; ante un fallo de red NO se debe marcar suspendido,
+            // porque la ausencia sería un falso positivo.
+            var serverFetchOk = true
             try {
                 val responseMios = CletaApi.retrofitService.getRepartidorPedidos("Bearer $t")
-                if (responseMios.success) mios = responseMios.data ?: emptyList()
+                if (responseMios.success) mios = responseMios.data ?: emptyList() else serverFetchOk = false
                 Log.d("CletaEats", "refreshData: pedidos asignados=${mios.size}")
             } catch (e: HttpException) {
                 Log.e("CletaEats", "Error cargando pedidos asignados: HTTP ${e.code()}")
+                serverFetchOk = false
                 if (e.code() == 400) {
                     // El usuario no tiene perfil de repartidor — forzar logout
                     Log.w("CletaEats", "Perfil de repartidor no encontrado, cerrando sesión.")
@@ -68,17 +73,20 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                 }
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error cargando pedidos asignados: ${e.message}")
+                serverFetchOk = false
             }
 
             var disp: List<PedidoItem> = emptyList()
             try {
                 val responseDisp = CletaApi.retrofitService.getPedidosDisponibles("Bearer $t")
-                if (responseDisp.success) disp = responseDisp.data ?: emptyList()
+                if (responseDisp.success) disp = responseDisp.data ?: emptyList() else serverFetchOk = false
                 Log.d("CletaEats", "refreshData: pedidos disponibles=${disp.size}")
             } catch (e: HttpException) {
                 Log.e("CletaEats", "Error cargando pedidos disponibles: HTTP ${e.code()}")
+                serverFetchOk = false
             } catch (e: Exception) {
                 Log.e("CletaEats", "Error cargando pedidos disponibles: ${e.message}")
+                serverFetchOk = false
             }
 
             val restaurantes = sqliteHelper.obtenerRestaurantes()
@@ -94,7 +102,7 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                 .filter { it.tipo == "ASSIGN_ORDER" }
                 .mapNotNull { it.payload.toIntOrNull() }
                 .toSet()
-            val localActualizadosSuspendidos = localPedidos.map { local ->
+            val localActualizadosSuspendidos = if (!serverFetchOk) localPedidos else localPedidos.map { local ->
                 val estaActivo = local.estado?.lowercase() in estadosActivosRepartidor
                 if (estaActivo && local.id !in serverIds && local.id !in pendingAssignIds) {
                     Log.d("CletaEats", "Pedido #${local.id} ya no está en servidor → marcado suspendido")
@@ -119,6 +127,24 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
 
             pedidos = merged
             Log.d("CletaEats", "refreshData: total pedidos en UI=${merged.size}")
+
+            // Si el cliente canceló el pedido que el repartidor está rastreando, cerrar
+            // la pantalla de seguimiento y avisarle (solo si el fetch fue exitoso, para
+            // no reaccionar ante un fallo de red transitorio).
+            if (serverFetchOk) {
+                val sel = pedidoSeleccionado
+                if (sel != null) {
+                    val actualizado = merged.find { it.id == sel.id }
+                    val fueCancelado = actualizado == null || actualizado.estado?.lowercase() == "suspendido"
+                    if (fueCancelado) {
+                        pedidoSeleccionado = null
+                        activeTab = RepartidorActiveTab.INICIO
+                        android.widget.Toast.makeText(
+                            context, "El cliente canceló el pedido", android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
         } catch (e: Exception) {
             Log.e("CletaEats", "Error crítico en refreshData: ${e.message}")
             pedidos = sqliteHelper.obtenerPedidos()

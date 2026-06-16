@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cletaeats.network.PedidoItem
@@ -161,17 +162,22 @@ fun RepartidorHistorialTab(
                                             pedido.restauranteNombre ?: "Restaurante",
                                             fontWeight = FontWeight.ExtraBold,
                                             color = ActiveBlue,
-                                            fontSize = 15.sp
+                                            fontSize = 15.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                         Spacer(Modifier.height(2.dp))
                                         Text(
                                             "Pedido #${pedido.id}  •  ${labelEstadoRepartidor(pedido.estado)}",
                                             color = ActiveBlue.copy(alpha = 0.75f),
                                             fontSize = 12.sp,
-                                            fontWeight = FontWeight.Medium
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
+                                Spacer(Modifier.width(12.dp))
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(
                                         "CRC ${pedido.total ?: 0.0}",
@@ -250,12 +256,14 @@ fun RepartidorListaHistorialContent(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = pedido.restauranteNombre ?: "Restaurante",
                                 fontWeight = FontWeight.Bold,
                                 color = TextDark,
-                                fontSize = 15.sp
+                                fontSize = 15.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -273,14 +281,19 @@ fun RepartidorListaHistorialContent(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Pedido #${pedido.id}", color = TextMid.copy(alpha = 0.7f), fontSize = 12.sp)
+                                Text(
+                                    "Pedido #${pedido.id}", color = TextMid.copy(alpha = 0.7f), fontSize = 12.sp,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
+                        Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = "CRC ${pedido.total ?: 0.0}",
                             fontWeight = FontWeight.Bold,
                             color = if (esEntregado) GreenAccent else TextMid,
-                            fontSize = 15.sp
+                            fontSize = 15.sp,
+                            maxLines = 1
                         )
                     }
                 }
