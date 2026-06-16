@@ -103,16 +103,11 @@ private fun TarjetaRow(tarjeta: MetodoPago, onDelete: () -> Unit) {
         border = BorderStroke(1.dp, CreamDark)
     ) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.CreditCard, contentDescription = null, tint = BrownMid)
+            CardBrandBadge(tarjeta.numeroTarjeta)
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                val brand = when {
-                    tarjeta.numeroTarjeta.startsWith("4") -> "VISA"
-                    tarjeta.numeroTarjeta.startsWith("5") -> "Mastercard"
-                    else -> "Tarjeta"
-                }
                 Text(
-                    "$brand **** ${tarjeta.numeroTarjeta.takeLast(4)}",
+                    "**** ${tarjeta.numeroTarjeta.takeLast(4)}",
                     fontWeight = FontWeight.Bold, color = TextDark, maxLines = 1
                 )
                 Text("Vence: ${tarjeta.fechaVencimiento}", fontSize = 11.sp, color = TextMid)

@@ -92,7 +92,7 @@ fun PaymentDialog(
                                 selected = (selectedValue == tarjeta.numeroTarjeta),
                                 onClick = { selectedValue = tarjeta.numeroTarjeta }
                             )
-                            CardTypeBadge(tarjeta.numeroTarjeta, modifier = Modifier.padding(start = 4.dp))
+                            CardBrandBadge(tarjeta.numeroTarjeta, modifier = Modifier.padding(start = 4.dp))
                             Text(
                                 "**** ${tarjeta.numeroTarjeta.takeLast(4)}",
                                 Modifier.padding(start = 6.dp),
@@ -111,7 +111,7 @@ fun PaymentDialog(
                             if (filtered.length <= 16) num = filtered
                         },
                         label = { Text("Número de Tarjeta") },
-                        trailingIcon = { CardTypeBadge(num) },
+                        trailingIcon = { CardBrandBadge(num) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                         keyboardActions = KeyboardActions(onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }),
@@ -243,25 +243,6 @@ fun PaymentDialog(
         },
         containerColor = Cream
     )
-}
-
-@Composable
-private fun CardTypeBadge(num: String, modifier: Modifier = Modifier) {
-    val isMc = (num.length >= 2 && num.take(2).toIntOrNull() in 51..55) ||
-               (num.length >= 4 && num.take(4).toIntOrNull()?.let { it in 2221..2720 } == true)
-    when {
-        num.startsWith("4") ->
-            Surface(modifier, shape = RoundedCornerShape(4.dp), color = BlueAccent) {
-                Text("VISA", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 9.sp,
-                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
-            }
-        isMc ->
-            Surface(modifier, shape = RoundedCornerShape(4.dp), color = OrangeSoft) {
-                Text("MC", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 9.sp,
-                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
-            }
-        else -> Icon(Icons.Default.CreditCard, contentDescription = null, tint = TextMid, modifier = modifier)
-    }
 }
 
 private fun launchBiometric(

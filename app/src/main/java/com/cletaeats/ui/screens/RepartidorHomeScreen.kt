@@ -284,7 +284,7 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
     LaunchedEffect(Unit) {
         com.cletaeats.database.SyncManager.assignConflict.collect { conflictedOrderId ->
             // Otro repartidor se adelantó — revertir estado local y refrescar disponibles
-            applyEstadoLocally(conflictedOrderId, "pendiente")
+            applyEstadoLocally(conflictedOrderId, "preparacion")
             if (pedidoSeleccionado?.id == conflictedOrderId) pedidoSeleccionado = null
             refreshData()
             Log.w("CletaEats", "RepartidorHome: pedido $conflictedOrderId ya fue asignado a otro repartidor.")

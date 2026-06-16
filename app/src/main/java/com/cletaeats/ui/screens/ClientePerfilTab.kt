@@ -29,6 +29,7 @@ import com.cletaeats.network.MetodoPago
 import com.cletaeats.network.SessionManager
 import com.cletaeats.network.UserProfile
 import com.cletaeats.storage.StorageThreshold
+import com.cletaeats.ui.components.CardBrandBadge
 import com.cletaeats.ui.theme.*
 
 @Composable
@@ -231,22 +232,26 @@ fun ClientePerfilTab(
                                             tint = BrownMid
                                         )
                                         Spacer(Modifier.width(12.dp))
-                                        Column {
-                                            val isVisa = tarjeta.numeroTarjeta.startsWith("4")
-                                            val isMastercard = tarjeta.numeroTarjeta.startsWith("5")
-                                            val cardBrand = if (isVisa) "VISA" else if (isMastercard) "Mastercard" else "Tarjeta"
-                                            Text(
-                                                "$cardBrand **** **** **** ${tarjeta.numeroTarjeta.takeLast(4)}",
-                                                fontWeight = FontWeight.Bold,
-                                                color = TextDark
-                                            )
+                                        // weight(1f) para que el texto largo (p.ej. "Mastercard")
+                                        // no empuje el botón de borrar fuera de la fila.
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                CardBrandBadge(tarjeta.numeroTarjeta)
+                                                Spacer(Modifier.width(6.dp))
+                                                Text(
+                                                    "**** **** **** ${tarjeta.numeroTarjeta.takeLast(4)}",
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = TextDark,
+                                                    maxLines = 1,
+                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                )
+                                            }
                                             Text(
                                                 "Vence: ${tarjeta.fechaVencimiento}",
                                                 fontSize = 11.sp,
                                                 color = TextMid
                                             )
                                         }
-                                        Spacer(Modifier.weight(1f))
                                         IconButton(onClick = { showDeleteConfirmDialog = tarjeta }) {
                                             Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
                                         }
