@@ -29,6 +29,7 @@ import com.cletaeats.utils.PedidoMergeUtils
 import com.cletaeats.utils.currentConnectivityState
 import com.cletaeats.utils.connectivityState
 import com.cletaeats.utils.ConnectionState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -136,6 +137,18 @@ fun ClienteHomeScreen(onLogout: () -> Unit) {
     LaunchedEffect(Unit) {
         com.cletaeats.database.SyncManager.syncCompleted.collect {
             refreshData()
+        }
+    }
+
+    // Polling continuo del historial: refresca cada 5 s mientras haya conexión para
+    // ver cambios hechos por el repartidor (ej: pedido marcado "entregado") sin tener
+    // que reiniciar la app. Mismo patrón que RepartidorHomeScreen.
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(5000)
+            if (connectionState is ConnectionState.Available) {
+                refreshData()
+            }
         }
     }
 
