@@ -37,6 +37,8 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
     var isSubmittingStatus by remember { mutableStateOf(false) }
     var isOnline by remember { mutableStateOf(true) }
     var profileError by remember { mutableStateOf(false) }
+    var userProfile by remember { mutableStateOf<UserProfile?>(null) }
+    var tarjetasRepartidor by remember { mutableStateOf<List<MetodoPago>>(emptyList()) }
     val connectionState by connectivityState()
     val networkOnline = connectionState is ConnectionState.Available
 
@@ -133,6 +135,78 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
             refreshData()
             if (profileError) break
             delay(5000)
+        }
+    }
+
+    // Perfil del repartidor: cache-first y luego API (mismo patrón que el cliente)
+    LaunchedEffect(networkOnline) {
+        userProfile = com.cletaeats.utils.LocalCacheManager.getUserProfile()
+            ?: com.cletaeats.utils.LocalCacheManager.getUserProfileOffline()
+        if (networkOnline) {
+            try {
+                val t = TokenManager.token ?: return@LaunchedEffect
+                val resp = CletaApi.retrofitService.getUserPerfil("Bearer $t")
+                if (resp.success && resp.data != null) {
+                    userProfile = resp.data
+                    com.cletaeats.utils.LocalCacheManager.saveUserProfile(resp.data)
+                }
+                val tarjetasResp = CletaApi.retrofitService.getTarjetasRepartidor("Bearer $t")
+                if (tarjetasResp.success) tarjetasRepartidor = tarjetasResp.data ?: emptyList()
+            } catch (e: Exception) {
+                Log.w("CletaEats", "No se pudo cargar perfil/tarjetas del repartidor: ${e.message}")
+            }
+        }
+    }
+
+    fun toast(msg: String) {
+        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    fun guardarTarjetaRepartidor(tarjeta: MetodoPago) {
+        // Las tarjetas no tienen cola offline: avisamos en vez de fallar en silencio.
+        if (!networkOnline) {
+            toast("Sin conexión: no se pudo guardar la tarjeta")
+            return
+        }
+        coroutineScope.launch {
+            try {
+                val t = TokenManager.token ?: return@launch
+                val resp = CletaApi.retrofitService.guardarTarjetaRepartidor("Bearer $t", tarjeta)
+                if (resp.success) {
+                    val refrescadas = CletaApi.retrofitService.getTarjetasRepartidor("Bearer $t")
+                    if (refrescadas.success) tarjetasRepartidor = refrescadas.data ?: emptyList()
+                    toast("Tarjeta guardada")
+                } else {
+                    Log.w("CletaEats", "guardarTarjetaRepartidor rechazado: ${resp.error}")
+                    toast(resp.error ?: "No se pudo guardar la tarjeta")
+                }
+            } catch (e: Exception) {
+                Log.e("CletaEats", "Error guardando tarjeta de repartidor: ${e.message}")
+                toast("No se pudo guardar la tarjeta")
+            }
+        }
+    }
+
+    fun eliminarTarjetaRepartidor(tarjetaId: Int) {
+        if (!networkOnline) {
+            toast("Sin conexión: no se pudo eliminar la tarjeta")
+            return
+        }
+        coroutineScope.launch {
+            try {
+                val t = TokenManager.token ?: return@launch
+                val resp = CletaApi.retrofitService.deleteTarjetaRepartidor("Bearer $t", tarjetaId)
+                if (resp.success) {
+                    tarjetasRepartidor = tarjetasRepartidor.filterNot { it.id == tarjetaId }
+                    toast("Tarjeta eliminada")
+                } else {
+                    Log.w("CletaEats", "eliminarTarjetaRepartidor rechazado: ${resp.error}")
+                    toast(resp.error ?: "No se pudo eliminar la tarjeta")
+                }
+            } catch (e: Exception) {
+                Log.e("CletaEats", "Error eliminando tarjeta de repartidor: ${e.message}")
+                toast("No se pudo eliminar la tarjeta")
+            }
         }
     }
 
@@ -330,7 +404,11 @@ fun RepartidorHomeScreen(onLogout: () -> Unit) {
                             RepartidorActiveTab.PERFIL -> RepartidorPerfilTab(
                                 pedidos = pedidos,
                                 isOnline = isOnline,
-                                onOnlineToggle = { isOnline = it }
+                                onOnlineToggle = { isOnline = it },
+                                userProfile = userProfile,
+                                tarjetas = tarjetasRepartidor,
+                                onSaveCard = { guardarTarjetaRepartidor(it) },
+                                onDeleteCard = { eliminarTarjetaRepartidor(it) }
                             )
                         }
                     }

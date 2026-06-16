@@ -2,8 +2,10 @@ package com.cletaeats.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -15,23 +17,32 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cletaeats.network.MetodoPago
 import com.cletaeats.network.PedidoItem
 import com.cletaeats.network.TokenManager
+import com.cletaeats.network.UserProfile
+import com.cletaeats.ui.components.PaymentMethodsCard
+import com.cletaeats.ui.components.PersonalInfoCard
 import com.cletaeats.ui.theme.*
 
 @Composable
 fun RepartidorPerfilTab(
     pedidos: List<PedidoItem>,
     isOnline: Boolean,
-    onOnlineToggle: (Boolean) -> Unit
+    onOnlineToggle: (Boolean) -> Unit,
+    userProfile: UserProfile? = null,
+    tarjetas: List<MetodoPago> = emptyList(),
+    onSaveCard: (MetodoPago) -> Unit = {},
+    onDeleteCard: (Int) -> Unit = {}
 ) {
-    val username = TokenManager.username ?: "Repartidor Cleta"
+    val username = userProfile?.username ?: TokenManager.username ?: "Repartidor Cleta"
     val completados = pedidos.filter { it.estado?.lowercase() == "entregado" }.size
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Cream)
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -120,6 +131,20 @@ fun RepartidorPerfilTab(
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        // Información personal (mismo formato que el cliente)
+        PersonalInfoCard(username = username, profile = userProfile)
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Métodos de pago (mismo formato que el cliente)
+        PaymentMethodsCard(
+            tarjetas = tarjetas,
+            onSaveCard = onSaveCard,
+            onDeleteCard = onDeleteCard
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
         // Connection Switch Card
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -167,5 +192,7 @@ fun RepartidorPerfilTab(
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(80.dp))
     }
 }

@@ -83,6 +83,19 @@ interface CletaApiService {
         @Body request: UpdateStatusRequest
     ): CletaResponse<Boolean>
 
+    // Tarjetas del repartidor (espejo de las del cliente)
+    @GET("api/repartidor/tarjetas")
+    suspend fun getTarjetasRepartidor(@Header("Authorization") token: String): CletaResponse<List<MetodoPago>>
+
+    @POST("api/repartidor/tarjetas")
+    suspend fun guardarTarjetaRepartidor(@Header("Authorization") token: String, @Body tarjeta: MetodoPago): CletaResponse<MetodoPago>
+
+    @DELETE("api/repartidor/tarjetas/{id}")
+    suspend fun deleteTarjetaRepartidor(
+        @Header("Authorization") token: String,
+        @Path("id") id: Int
+    ): CletaResponse<String>
+
     // For testing raw payload
     @GET("{path}")
     suspend fun getRawPayload(
